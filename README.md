@@ -1,5 +1,3 @@
-## leader_election_ros
-
 # assumptions:
 - each node knows its PID
 - each node publishes its PID
