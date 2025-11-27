@@ -9,6 +9,7 @@
   - [chang and roberts](https://en.wikipedia.org/wiki/Chang_and_Roberts_algorithm)
   - [hirshberg-sinclair](https://en.wikipedia.org/wiki/Hirschberg%E2%80%93Sinclair_algorithm)
   - dynamic (wireless) leader election
+  - [raft](https://github.com/ros-raft/ros_raft.git)
 
 - [voting system](https://en.wikipedia.org/wiki/Electoral_system)
 - [distribute computing](https://en.wikipedia.org/wiki/Distributed_computing#Election)
