@@ -39,6 +39,19 @@
     Eventually, the message gets back to the process that started it all. That process recognizes this event when it receives an incoming message containing its own identifier. At that point, the message type is changed to COORDINATOR and circulated once again, this time to inform everyone else who the coordinator is (the list member with the highest identifier) and who the members of the new ring are. When this message has circulated once, it is removed and everyone goes back to work.
     
   - Leader election in ZooKeeper
+    ZooKeeper is logically centralized coordination service.
+    ZooKeeper maintains a (relatively small) set of servers, forming what is called an ensemble. For a client, an ensemble appears as just a single server. For ZooKeeper, this ensemble is also coordinated by a single server, called the leader.
+    The other servers are called followers and essentially act as up-to-date standbys for whenever the leader malfunctions.
+    When a follower s believes something is wrong with the leader (e.g., it suspects that the leader crashed), it sends out an ELECTION message to all other servers, along with the pair (voteID,voteTX). For this first message, it sets voteID to id(s) and voteTX to tx(s). During an election, each server s maintains two variables. The first, leader(s), records the identifier of the server that s believes may turn out to be the final leader, and is initialized to id(s).
+    The second, lastTX(s) is what s has learned to be the most recent transaction, initially being its own value, namely tx(s).
+    When a server s∗ receives (voteID,voteTX), it proceeds as follows:
+      • If lastTX(s∗) < voteTX, then s∗ just received more up-to-date information on the most recent transaction. In that case it sets
+        – leader(s∗) ← voteID
+        – lastTX(s∗) ← voteTX
+      • If lastTX(s∗) = voteTX and leader(s∗) < voteID, then s∗ knows as much about the most recent transaction as what it was just sent, but its perspective on which server will be the next leader needs to be updated:
+        – leader(s∗) ← voteID
+    Each time a server s∗ receives a (voteID,voteTX) message, it may update its own information on whom it suspects to be the next leader. If s∗ believes it should be the next leader, and has not sent out a message stating this, it will broadcast the pair (id(s∗),tx(s∗)). Under the assumption that communication is reliable, this broadcast alone should do the job.
+    Coming to the conclusion that one of the servers in a ZooKeeper ensemble is now indeed the new leader, can be a bit tricky. One way is to let a server come to the conclusion that it may never become a leader in the current round, in which case it tells the alleged leader that it will become a follower. This means that as soon as a server has collected enough followers, it can promote itself to leader.
 
   - Leader election in Raft
     
