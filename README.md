@@ -20,7 +20,7 @@ The proposed architecture involves a "Leader Election" layer that sits alongside
 ### Integration Strategy
 The goal is to allow developers to make standard ROS nodes resilient by simply inheriting from a base class or using a sidecar pattern, minimizing the need to rewrite business logic.
 
-## Supported Algorithms
+## Possible Algorithms
 
 The project investigates several algorithms, comparing their suitability for ROS environments (wireless, dynamic topology, etc.):
 
