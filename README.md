@@ -93,4 +93,17 @@
     The most serious are arbitrary failures, also known as Byzantine failures. In effect, when arbitrary failures occur, clients should be prepared for the worst. In particular, a server may be producing output it should never have produced, but which cannot be detected as being incorrect.
 
   - With physical redundancy, extra equipment or processes are added to make it possible for the system as a whole to tolerate the loss or malfunctioning of some components. Physical redundancy can thus be done either in hardware or in software. For example, extra processes can be added to the system, so that if a few of them crash, the system can still function correctly. In other words, by replicating processes, a high degree of fault tolerance may be achieved
-  Maybe placing an entire logic before each ROS node that elects a leader and wait for it to decide which node to activate. Only node that th eleader decides will spinn the actual node. This way you could have multiple vesrion of the same node ready to be spinned like a faster and readier backup.
+    Maybe placing an entire logic before each ROS node that elects a leader and wait for it to decide which node to activate. Only node that th eleader decides will spinn the actual node. This way you could have multiple vesrion of the same node ready to be spinned like a faster and readier backup.
+  - Raft
+    In Raft, we typically have a group of some five replicated servers. We assume the set of servers is fixed (although Raft allows servers to join and leave the group). Each server maintains a log of operations, some of which have already been executed (i.e., committed), as well as pending operations. Consensus is expressed in terms of these logs: committed operations have the same position in each of the respective server’s logs. One of the servers operates as a leader and decides on the order in which pending operations are to be committed. In essence, Raft is a primary-backup protocol, with the primary acting as leader and the backups as followers.
+    A client always sends an operation request to the leader (possibly after having been redirected by one of the followers). That means that the leader is fully aware of all pending requests. Each client request for executing an operation o is appended to the leader’s log, in the form of a tuple ⟨o, t, k⟩ in which t is the term under which the current leader serves, and k the index of o in the leader’s log. To recall, after electing a next leader, the term for new operations will be t + 1. Let c be the index of the most recently committed operation. Raft guarantees that operations that have been registered as committed, have been performed by a majority of the servers, and that the result has been returned to the original client.
+  - Paxos
+    The assumptions under which Paxos operates are rather weak:
+      • The distributed system is partially synchronous (in fact, it may even be asynchronous).
+      • Communication between processes may be unreliable, meaning that messages may be lost, duplicated, or reordered.
+      • Messages that are corrupted can be detected as such (and thus subsequently ignored).
+      • All operations are deterministic: once an execution is started, it is known exactly what it will do.
+      • Processes may exhibit crash failures, but not arbitrary failures, nor do processes collude.
+      ...
+
+  The issue is that all of this algorithms are originally designed for server-client connections, but what this project is tring to achieve is to make crash resiliat application in the robotic domain in which there are multiple broadcasting nodes with the same priority.
