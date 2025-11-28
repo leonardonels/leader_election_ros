@@ -54,5 +54,16 @@
     Coming to the conclusion that one of the servers in a ZooKeeper ensemble is now indeed the new leader, can be a bit tricky. One way is to let a server come to the conclusion that it may never become a leader in the current round, in which case it tells the alleged leader that it will become a follower. This means that as soon as a server has collected enough followers, it can promote itself to leader.
 
   - Leader election in Raft
-    
+    Raft operates in a setting in which a handful of known replicated servers (typically five) collaborate by ensuring that each server executes the same set of operations, and all in the same order.
+    To this end, one of the servers is elected as leader to tell the others what the exact order is of those operations.
+    The protocol assumes that messages may be lost and that servers may crash.
+    Each server can be in one of three states: follower, candidate, or leader.
+    Furthermore, the protocol operates in terms, where during each term there is exactly one leader, although it could have perhaps crashed. Each term is numbered, starting with 0. 
+    The leader is assumed to regularly send out a message, either containing information on an operation that should be carried out, or otherwise a heartbeat message to tell the other servers that their leader is still up and running.
+    Each server initially starts in the follower state (that is, there is initially no leader). After a follower timeout, a following server concludes that the leader may have crashed (which, by the way, may be a false conclusion). As a result, it enters the candidate state and starts an election, volunteering to be the new leader. An election starts with a broadcast to all other servers, along with increasing the term number by 1. At that point, three situations may happen.
+      1. A candidate may receive a message from an alleged leader. If that server indicates it is operating in the same term as the candidate server, the latter will become follower again for the current term.
+      2. When a following server receives an election message for the first time (in a new term), it simply votes for the candidate and ignores any other election messages (for that new term). Therefore, a candidate server can also receive a vote. If it has a majority of votes (i.e., more than half of the servers, including itself), it promotes itself as leader for the new term.
+      3. As long as there is no alleged leader, or not enough votes have been received, the candidate server waits until a candidate timeout happens. At that point, the candidate server will simply start a new election (and again, for a next term).
+    Of course, if all servers enter the candidate state, we bear the risk of indefinitely not being able to cast enough votes for a single server. A simple solution is to slightly vary the follower timeout and candidate timeout on a per-server basis. The result is that, generally, there is only a single candidate for the new term, allowing each other server to vote for that candidate and become a follower. As soon as a server becomes leader, it will send out a heartbeat message to the rest.
+
 - 8
