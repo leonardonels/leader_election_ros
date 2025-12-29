@@ -45,38 +45,60 @@ private:
     std::string change_state_service_name = node_name + "/change_state";
 
     auto get_state_client = this->create_client<lifecycle_msgs::srv::GetState>(get_state_service_name);
+    auto change_state_client = this->create_client<lifecycle_msgs::srv::ChangeState>(change_state_service_name);
     
-    if (!get_state_client->wait_for_service(1s)) {
-      RCLCPP_WARN(get_logger(), "Service %s not available. Node might be dead or not exist.", get_state_service_name.c_str());
+    if (!get_state_client->wait_for_service(1s) || !change_state_client->wait_for_service(1s)) {
+      RCLCPP_WARN(get_logger(), "Services for %s not available. Node might be dead or not exist.", node_name.c_str());
       return;
     }
 
     auto request = std::make_shared<lifecycle_msgs::srv::GetState::Request>();
-    auto future = get_state_client->async_send_request(request);
     
-    auto change_state_client = this->create_client<lifecycle_msgs::srv::ChangeState>(change_state_service_name);
-    if (!change_state_client->wait_for_service(1s)) {
-       // Node likely doesn't exist
-       return;
-    }
-
-    auto change_req = std::make_shared<lifecycle_msgs::srv::ChangeState::Request>();
-    change_req->transition.id = lifecycle_msgs::msg::Transition::TRANSITION_ACTIVE_SHUTDOWN; 
-    
-    change_req->transition.id = lifecycle_msgs::msg::Transition::TRANSITION_DEACTIVATE;
-    
-    RCLCPP_INFO(get_logger(), "Sending DEACTIVATE to %s", node_name.c_str());
-    change_state_client->async_send_request(change_req, 
-      [this, node_name](rclcpp::Client<lifecycle_msgs::srv::ChangeState>::SharedFuture future) {
+    // Capture clients to keep them alive during async calls
+    get_state_client->async_send_request(request, 
+      [this, node_name, get_state_client, change_state_client](rclcpp::Client<lifecycle_msgs::srv::GetState>::SharedFuture future_state) {
         try {
-          auto result = future.get();
-          if (result->success) {
-             RCLCPP_INFO(this->get_logger(), "Successfully deactivated %s", node_name.c_str());
+          auto state_resp = future_state.get();
+          uint8_t current_state = state_resp->current_state.id;
+          
+          uint8_t transition_id = 0;
+          std::string log_label;
+
+          if (current_state == lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
+              transition_id = lifecycle_msgs::msg::Transition::TRANSITION_ACTIVE_SHUTDOWN;
+              log_label = "ACTIVE_SHUTDOWN";
+          } else if (current_state == lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE) {
+              transition_id = lifecycle_msgs::msg::Transition::TRANSITION_INACTIVE_SHUTDOWN;
+              log_label = "INACTIVE_SHUTDOWN";
+          } else if (current_state == lifecycle_msgs::msg::State::PRIMARY_STATE_UNCONFIGURED) {
+              transition_id = lifecycle_msgs::msg::Transition::TRANSITION_UNCONFIGURED_SHUTDOWN;
+              log_label = "UNCONFIGURED_SHUTDOWN";
           } else {
-             RCLCPP_WARN(this->get_logger(), "Failed to deactivate %s", node_name.c_str());
+              RCLCPP_INFO(this->get_logger(), "Node %s is in state %d, cannot shutdown or already shutdown", node_name.c_str(), current_state);
+              return;
           }
+
+          auto change_req = std::make_shared<lifecycle_msgs::srv::ChangeState::Request>();
+          change_req->transition.id = transition_id;
+          // Do not set label, let it use ID
+          // change_req->transition.label = transition_label;
+
+          RCLCPP_INFO(this->get_logger(), "Sending %s (id %d) to %s", log_label.c_str(), transition_id, node_name.c_str());
+
+          change_state_client->async_send_request(change_req, 
+            [this, node_name, change_state_client](rclcpp::Client<lifecycle_msgs::srv::ChangeState>::SharedFuture future_change) {
+              try {
+                if (future_change.get()->success) {
+                    RCLCPP_INFO(this->get_logger(), "Successfully shut down %s", node_name.c_str());
+                } else {
+                    RCLCPP_WARN(this->get_logger(), "Failed to shut down %s", node_name.c_str());
+                }
+              } catch (...) {
+                 RCLCPP_ERROR(this->get_logger(), "Change state service call failed for %s", node_name.c_str());
+              }
+            });
         } catch (...) {
-          RCLCPP_ERROR(this->get_logger(), "Service call failed for %s", node_name.c_str());
+          RCLCPP_ERROR(this->get_logger(), "Get state service call failed for %s", node_name.c_str());
         }
       });
   }
