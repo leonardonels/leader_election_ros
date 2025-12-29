@@ -7,6 +7,11 @@
   <maintainer email="leo.nels.2000@gmail.com">leonardonels</maintainer>
   <license>Apache-2.0</license>
 
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>std_msgs</depend>
+  <depend>lifecycle_msgs</depend>
+
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <test_depend>ament_lint_auto</test_depend>

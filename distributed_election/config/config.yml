@@ -1,0 +1,4 @@
+simulation_node:
+  ros__parameters:
+    num_agents: 5
+    heartbeat_interval_ms: 1000

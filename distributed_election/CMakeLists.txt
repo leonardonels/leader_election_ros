@@ -7,9 +7,45 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(lifecycle_msgs REQUIRED)
+
+include_directories(include)
+
+add_executable(simulation_node
+  src/simulation_node.cpp
+  src/simple_agent.cpp
+)
+ament_target_dependencies(simulation_node
+  rclcpp
+  rclcpp_lifecycle
+  std_msgs
+  lifecycle_msgs
+)
+
+add_executable(chaos_monkey
+  src/chaos_monkey.cpp
+)
+ament_target_dependencies(chaos_monkey
+  rclcpp
+  rclcpp_lifecycle
+  std_msgs
+  lifecycle_msgs
+)
+
+install(TARGETS
+  simulation_node
+  chaos_monkey
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  launch
+  config
+  DESTINATION share/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
