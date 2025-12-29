@@ -15,10 +15,10 @@ public:
   {
     this->declare_parameter("num_agents", 3);
     this->declare_parameter("heartbeat_interval_ms", 1000);
+    this->declare_parameter("nodes_name_prefix", "agent_");
     
     create_agents();
     
-    // Check for dead agents every 1 second
     cleanup_timer_ = this->create_wall_timer(
       std::chrono::seconds(1),
       std::bind(&SimulationOrchestrator::cleanup_dead_agents, this));
@@ -28,11 +28,12 @@ public:
   {
     int num_agents = this->get_parameter("num_agents").as_int();
     int heartbeat_interval = this->get_parameter("heartbeat_interval_ms").as_int();
+    std::string nodes_name_prefix = this->get_parameter("nodes_name_prefix").as_string();
 
     RCLCPP_INFO(this->get_logger(), "Creating %d agents...", num_agents);
 
     for (int i = 0; i < num_agents; ++i) {
-      std::string node_name = "agent_" + std::to_string(i);
+      std::string node_name = nodes_name_prefix + std::to_string(i);
       auto agent = std::make_shared<distributed_election::SimpleAgent>(node_name, i, heartbeat_interval);
       agents_.push_back(agent);
       
@@ -75,7 +76,7 @@ int main(int argc, char ** argv)
   
   executor.add_node(orchestrator);
 
-  RCLCPP_INFO(orchestrator->get_logger(), "Simulation started. Spinning...");
+  RCLCPP_INFO(orchestrator->get_logger(), "Simulation started. Spinning nodes...");
   executor.spin();
 
   rclcpp::shutdown();

@@ -14,11 +14,11 @@ find_package(lifecycle_msgs REQUIRED)
 
 include_directories(include)
 
-add_executable(simulation_node
-  src/simulation_node.cpp
+add_executable(simulation_orchestrator
+  src/simulation_orchestrator.cpp
   src/simple_agent.cpp
 )
-ament_target_dependencies(simulation_node
+ament_target_dependencies(simulation_orchestrator
   rclcpp
   rclcpp_lifecycle
   std_msgs
@@ -36,7 +36,7 @@ ament_target_dependencies(chaos_monkey
 )
 
 install(TARGETS
-  simulation_node
+  simulation_orchestrator
   chaos_monkey
   DESTINATION lib/${PROJECT_NAME}
 )

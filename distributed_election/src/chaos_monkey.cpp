@@ -21,6 +21,13 @@ public:
     this->declare_parameter("target_nodes_prefix", "agent_");
     this->declare_parameter("kill_interval_s", 5);
     this->declare_parameter("max_nodes", 10);
+    this->declare_parameter("discovery_time_s", 10);
+
+    // wait for discovery time
+    // it's safe to assume that for a short period after startup all nodes are up and running before facing ipotetical failures
+    int discovery_time = this->get_parameter("discovery_time_s").as_int();
+    RCLCPP_INFO(this->get_logger(), "Chaos Monkey waiting %d seconds simulating a correct initialization", discovery_time);
+    rclcpp::sleep_for(std::chrono::seconds(discovery_time));
 
     timer_ = this->create_wall_timer(
       std::chrono::seconds(this->get_parameter("kill_interval_s").as_int()),

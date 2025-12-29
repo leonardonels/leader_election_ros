@@ -13,7 +13,7 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='distributed_election',
-            executable='simulation_node',
+            executable='simulation_orchestrator',
             output='screen',
             parameters=[config]
         ),
@@ -22,9 +22,6 @@ def generate_launch_description():
             executable='chaos_monkey',
             name='chaos_monkey',
             output='screen',
-            parameters=[{
-                'kill_interval_s': 3,
-                'max_nodes': 5
-            }]
+            parameters=[config]
         )
     ])

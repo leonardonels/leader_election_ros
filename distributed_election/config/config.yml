@@ -1,4 +1,12 @@
-simulation_node:
+simulation_orchestrator:
   ros__parameters:
     num_agents: 5
     heartbeat_interval_ms: 1000
+    nodes_name_prefix: "agent_"
+
+chaos_monkey:
+  ros__parameters:
+    discovery_time_s: 10
+    kill_interval_s: 3
+    max_nodes: 5
+    target_nodes_prefix: "agent_"
