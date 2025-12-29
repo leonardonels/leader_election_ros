@@ -52,7 +52,7 @@ public:
     while (it != agents_.end()) {
       auto & agent = *it;
       if (agent->get_current_state().id() == lifecycle_msgs::msg::State::PRIMARY_STATE_FINALIZED) {
-        RCLCPP_INFO(this->get_logger(), "Agent %s is finalized. Removing from simulation.", agent->get_name());
+        // RCLCPP_INFO(this->get_logger(), "Agent %s is finalized. Removing from simulation.", agent->get_name());
         executor_->remove_node(agent->get_node_base_interface());
         it = agents_.erase(it);
       } else {
