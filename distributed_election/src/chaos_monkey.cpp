@@ -54,7 +54,17 @@ private:
       return;
     }
     
-    std::uniform_int_distribution<int> dist(0, target_candidates.size() - 1);
+    // Sort candidates to ensure higher indices correspond to "higher" nodes (lexicographically)
+    std::sort(target_candidates.begin(), target_candidates.end());
+
+    // Create weights: higher index -> higher weight
+    // Example: Linear weights (1, 2, 3, 4, 5...)
+    std::vector<double> weights;
+    for (size_t i = 0; i < target_candidates.size(); ++i) {
+        weights.push_back(static_cast<double>(i + 1));
+    }
+
+    std::discrete_distribution<int> dist(weights.begin(), weights.end());
     int index = dist(rng_);
     std::string node_name = target_candidates[index];
 

@@ -27,9 +27,12 @@ public:
   private:
   void publish_heartbeat();
   void on_heartbeat_received(const std_msgs::msg::Int32::SharedPtr msg);
+  void on_leader_received(const std_msgs::msg::Int32::SharedPtr msg);
   void run_election_logic();
+  void run_health_check();
 
   int id_;
+  int32_t leader_id_;
   int heartbeat_interval_ms_;
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Int32>> heartbeat_pub_;
   rclcpp::TimerBase::SharedPtr timer_;
@@ -37,7 +40,15 @@ public:
   // Map of Agent ID -> Last time seen
   std::map<int, rclcpp::Time> last_heartbeat_map_;
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr heartbeat_sub_;
-  rclcpp::TimerBase::SharedPtr election_timer_;
+  rclcpp::TimerBase::SharedPtr health_check_timer_;
+
+  // Leader election pub and sub
+  rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr election_pub_;
+  rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr election_sub_;
+  
+  // Revival mechanism
+  rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr revival_pub_;
+
 };
 
 }  // namespace distributed_election

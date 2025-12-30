@@ -7,6 +7,8 @@
 #include "distributed_election/simple_agent.hpp"
 #include "lifecycle_msgs/msg/state.hpp"
 
+#include "std_msgs/msg/int32.hpp"
+
 class SimulationOrchestrator : public rclcpp::Node
 {
 public:
@@ -22,6 +24,12 @@ public:
     cleanup_timer_ = this->create_wall_timer(
       std::chrono::seconds(1),
       std::bind(&SimulationOrchestrator::cleanup_dead_agents, this));
+
+    rclcpp::QoS qos_profile(1); // Keep last 1
+    qos_profile.best_effort();  // UDP-like behavior (faster, less overhead)
+    revival_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+      "/election/revive", qos_profile,
+      std::bind(&SimulationOrchestrator::revive_agent, this, std::placeholders::_1));
   }
 
   void create_agents()
@@ -33,17 +41,43 @@ public:
     RCLCPP_INFO(this->get_logger(), "Creating %d agents...", num_agents);
 
     for (int i = 0; i < num_agents; ++i) {
-      std::string node_name = nodes_name_prefix + std::to_string(i);
-      auto agent = std::make_shared<distributed_election::SimpleAgent>(node_name, i, heartbeat_interval);
+      spawn_agent(i, heartbeat_interval, nodes_name_prefix);
+    }
+  }
+
+  void spawn_agent(int id, int heartbeat_interval, const std::string & prefix)
+  {
+      std::string node_name = prefix + std::to_string(id);
+      auto agent = std::make_shared<distributed_election::SimpleAgent>(node_name, id, heartbeat_interval);
       agents_.push_back(agent);
       
-      // Add to executor
       executor_->add_node(agent->get_node_base_interface());
       
-      // Auto-configure and activate for simulation purposes
       agent->configure();
       agent->activate();
+  }
+  
+  void revive_agent(const std_msgs::msg::Int32::SharedPtr msg)
+  {
+    int target_id = msg->data;
+    std::string nodes_name_prefix = this->get_parameter("nodes_name_prefix").as_string();
+    std::string target_name = nodes_name_prefix + std::to_string(target_id);
+
+    // Check if agent already exists and is alive
+    for (const auto & agent : agents_) {
+      if (agent->get_name() == target_name) {
+        // Agent exists. If it's finalized, we should have cleaned it up, but maybe not yet.
+        // If it's active, ignore the request.
+        if (agent->get_current_state().id() != lifecycle_msgs::msg::State::PRIMARY_STATE_FINALIZED) {
+           // RCLCPP_INFO(this->get_logger(), "Revival request for %s ignored: Agent is still alive/active.", target_name.c_str());
+           return;
+        }
+      }
     }
+
+    RCLCPP_INFO(this->get_logger(), "Reviving agent %d...", target_id);
+    int heartbeat_interval = this->get_parameter("heartbeat_interval_ms").as_int();
+    spawn_agent(target_id, heartbeat_interval, nodes_name_prefix);
   }
   
   void cleanup_dead_agents()
@@ -65,6 +99,7 @@ private:
   rclcpp::Executor * executor_;
   std::vector<std::shared_ptr<distributed_election::SimpleAgent>> agents_;
   rclcpp::TimerBase::SharedPtr cleanup_timer_;
+  rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr revival_sub_;
 };
 
 int main(int argc, char ** argv)
