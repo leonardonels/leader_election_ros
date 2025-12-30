@@ -66,8 +66,6 @@ public:
     // Check if agent already exists and is alive
     for (const auto & agent : agents_) {
       if (agent->get_name() == target_name) {
-        // Agent exists. If it's finalized, we should have cleaned it up, but maybe not yet.
-        // If it's active, ignore the request.
         if (agent->get_current_state().id() != lifecycle_msgs::msg::State::PRIMARY_STATE_FINALIZED) {
            // RCLCPP_INFO(this->get_logger(), "Revival request for %s ignored: Agent is still alive/active.", target_name.c_str());
            return;

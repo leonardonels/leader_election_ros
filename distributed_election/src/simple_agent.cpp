@@ -159,7 +159,6 @@ void SimpleAgent::run_health_check()
       if (agent.first == id_) continue;
       if ((now - agent.second).nanoseconds() * 1e-6 > heartbeat_interval_ms_ * 2) {
         RCLCPP_WARN(get_logger(), "Leader %d detected failure of Agent %d", id_, agent.first);
-        // revive dead node
         std_msgs::msg::Int32 msg;
         msg.data = agent.first;
         revival_pub_->publish(msg);
