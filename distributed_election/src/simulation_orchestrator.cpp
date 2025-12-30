@@ -4,7 +4,7 @@
 #include <algorithm>
 
 #include "rclcpp/rclcpp.hpp"
-#include "distributed_election/simple_agent.hpp"
+#include "distributed_election/bully_agent.hpp"
 #include "lifecycle_msgs/msg/state.hpp"
 
 #include "std_msgs/msg/int32.hpp"
@@ -48,7 +48,7 @@ public:
   void spawn_agent(int id, int heartbeat_interval, const std::string & prefix)
   {
       std::string node_name = prefix + std::to_string(id);
-      auto agent = std::make_shared<distributed_election::SimpleAgent>(node_name, id, heartbeat_interval);
+      auto agent = std::make_shared<distributed_election::BullyAgent>(node_name, id, heartbeat_interval);
       agents_.push_back(agent);
       
       executor_->add_node(agent->get_node_base_interface());
@@ -95,7 +95,7 @@ public:
 
 private:
   rclcpp::Executor * executor_;
-  std::vector<std::shared_ptr<distributed_election::SimpleAgent>> agents_;
+  std::vector<std::shared_ptr<distributed_election::BullyAgent>> agents_;
   rclcpp::TimerBase::SharedPtr cleanup_timer_;
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr revival_sub_;
 };

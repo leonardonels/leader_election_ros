@@ -13,7 +13,7 @@ namespace distributed_election
 
 class SimpleAgent : public rclcpp_lifecycle::LifecycleNode
 {
-public:
+  public:
   explicit SimpleAgent(const std::string & node_name, int id, int heartbeat_interval_ms);
 
   using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
@@ -24,13 +24,10 @@ public:
   CallbackReturn on_cleanup(const rclcpp_lifecycle::State &) override;
   CallbackReturn on_shutdown(const rclcpp_lifecycle::State &) override;
   
-  private:
-  void publish_heartbeat();
-  void on_heartbeat_received(const std_msgs::msg::Int32::SharedPtr msg);
-  void on_leader_received(const std_msgs::msg::Int32::SharedPtr msg);
-  void run_election_logic();
-  void run_health_check();
-
+  protected:
+  virtual void on_leader_received(const std_msgs::msg::Int32::SharedPtr msg);
+  virtual void run_election_logic();
+  
   int id_;
   int32_t leader_id_;
   int heartbeat_interval_ms_;
@@ -45,6 +42,11 @@ public:
   // Leader election pub and sub
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr election_pub_;
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr election_sub_;
+
+  private:
+  void publish_heartbeat();
+  void on_heartbeat_received(const std_msgs::msg::Int32::SharedPtr msg);
+  void run_health_check();
   
   // Revival mechanism
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr revival_pub_;
