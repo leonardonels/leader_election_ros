@@ -20,7 +20,6 @@ public:
   {
     this->declare_parameter("target_nodes_prefix", "agent_");
     this->declare_parameter("kill_interval_s", 5);
-    this->declare_parameter("max_nodes", 10);
     this->declare_parameter("discovery_time_s", 10);
 
     // wait for discovery time
@@ -40,11 +39,24 @@ private:
   void kill_random_node()
   {
     std::string prefix = this->get_parameter("target_nodes_prefix").as_string();
-    int max_nodes = this->get_parameter("max_nodes").as_int();
     
-    std::uniform_int_distribution<int> dist(0, max_nodes - 1);
-    int target_id = dist(rng_);
-    std::string node_name = prefix + std::to_string(target_id);
+    auto node_names = this->get_node_graph_interface()->get_node_names();
+    std::vector<std::string> target_candidates;
+
+    for (const auto & name : node_names) {
+      if (name.find(prefix) != std::string::npos) {
+        target_candidates.push_back(name);
+      }
+    }
+
+    if (target_candidates.empty()) {
+      RCLCPP_WARN(get_logger(), "No nodes found matching prefix '%s'", prefix.c_str());
+      return;
+    }
+    
+    std::uniform_int_distribution<int> dist(0, target_candidates.size() - 1);
+    int index = dist(rng_);
+    std::string node_name = target_candidates[index];
 
     RCLCPP_INFO(get_logger(), "Chaos Monkey targeting: %s", node_name.c_str());
     

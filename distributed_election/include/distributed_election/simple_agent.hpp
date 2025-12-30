@@ -23,14 +23,21 @@ public:
   CallbackReturn on_deactivate(const rclcpp_lifecycle::State &) override;
   CallbackReturn on_cleanup(const rclcpp_lifecycle::State &) override;
   CallbackReturn on_shutdown(const rclcpp_lifecycle::State &) override;
-
-private:
+  
+  private:
   void publish_heartbeat();
+  void on_heartbeat_received(const std_msgs::msg::Int32::SharedPtr msg);
+  void run_election_logic();
 
   int id_;
   int heartbeat_interval_ms_;
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Int32>> heartbeat_pub_;
   rclcpp::TimerBase::SharedPtr timer_;
+
+  // Map of Agent ID -> Last time seen
+  std::map<int, rclcpp::Time> last_heartbeat_map_;
+  rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr heartbeat_sub_;
+  rclcpp::TimerBase::SharedPtr election_timer_;
 };
 
 }  // namespace distributed_election
