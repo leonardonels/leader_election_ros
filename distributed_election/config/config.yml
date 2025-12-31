@@ -6,6 +6,6 @@ simulation_orchestrator:
 
 chaos_monkey:
   ros__parameters:
-    discovery_time_s: 3
-    kill_interval_s: 10
+    discovery_time_s: 10
+    kill_interval_s: 5
     target_nodes_prefix: "agent_"

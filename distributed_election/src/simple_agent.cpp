@@ -44,8 +44,6 @@ SimpleAgent::on_configure(const rclcpp_lifecycle::State &)
 
   // -----------------------------------------------------------------------------------
 
-  run_election_logic();
-
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
 
