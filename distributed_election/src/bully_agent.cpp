@@ -66,6 +66,10 @@ void BullyAgent::on_map_received(const std_msgs::msg::Int32MultiArray::SharedPtr
   }
 }
 
+// Process p sends an election message to all higher-numbered processes in the system. If no process responds, then p becomes the coordinator.
+// If a higher-level process (q) responds, it sends p a OK message that terminates p’s role in the algorithm
+//
+// But in this implementation, we simplify the logic: since we can use broadcast topics, we just check if the new leader ID is higher than ours, and if not we immediately take over.
 void BullyAgent::on_leader_received(const std_msgs::msg::Int32::SharedPtr msg)
 {
   leader_id_ = msg->data;
@@ -80,7 +84,8 @@ void BullyAgent::on_leader_received(const std_msgs::msg::Int32::SharedPtr msg)
   }
 }
 
-// Small semplification to avoid elections every dead node startup
+// When a crashed process reboots, it holds an election. If it is now the highest-numbered live process, it will win.
+// But in this case we allow the node to first gather heartbeats to see if a higher node is alive and avoid unnecessary elections.
 void BullyAgent::on_startup_timer()
 {
   startup_timer_->cancel();
@@ -100,6 +105,7 @@ void BullyAgent::on_startup_timer()
   }
 }
 
+// When some process recognize that the current leader (run_health_check) is no longer active, it calls for an election.
 void BullyAgent::run_election_logic()
 {  
   if (!election_ready_) {
