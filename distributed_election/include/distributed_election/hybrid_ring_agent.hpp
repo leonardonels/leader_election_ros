@@ -3,10 +3,10 @@
 
 namespace distributed_election
 {
-class RingAgent : public SimpleAgent
+class HybridRingAgent : public SimpleAgent
 {
 public:
-  RingAgent(const std::string & node_name, int id, int heartbeat_interval_ms);
+  HybridRingAgent(const std::string & node_name, int id, int heartbeat_interval_ms);
   
   using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
   CallbackReturn on_configure(const rclcpp_lifecycle::State &) override;
@@ -31,10 +31,6 @@ protected:
   
   // Election state for aggregation
   std::set<int> known_candidates_;
-
-private:
-  void publish_heartbeat() override;
-  void run_health_check() override;
   
   // Startup delay
   bool election_ready_;

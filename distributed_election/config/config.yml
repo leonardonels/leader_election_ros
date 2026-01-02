@@ -3,7 +3,7 @@ simulation_orchestrator:
     num_agents: 10
     heartbeat_interval_ms: 500
     nodes_name_prefix: "agent_"
-    agent_type: "ring"                    # Options: "bully", "ring"
+    agent_type: "ring"                    # Options: "bully", "hybrid_ring", ring"
 
 chaos_monkey:
   ros__parameters:

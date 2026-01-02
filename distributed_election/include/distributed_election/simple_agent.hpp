@@ -27,6 +27,9 @@ class SimpleAgent : public rclcpp_lifecycle::LifecycleNode
   protected:
   virtual void on_leader_received(const std_msgs::msg::Int32::SharedPtr msg);
   virtual void run_election_logic();
+  virtual void publish_heartbeat();
+  void on_heartbeat_received(const std_msgs::msg::Int32::SharedPtr msg);
+  virtual void run_health_check();
   
   int id_;
   int32_t leader_id_;
@@ -42,11 +45,6 @@ class SimpleAgent : public rclcpp_lifecycle::LifecycleNode
   // Leader election pub and sub
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr election_pub_;
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr election_sub_;
-
-  private:
-  void publish_heartbeat();
-  void on_heartbeat_received(const std_msgs::msg::Int32::SharedPtr msg);
-  void run_health_check();
   
   // Revival mechanism
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr revival_pub_;
