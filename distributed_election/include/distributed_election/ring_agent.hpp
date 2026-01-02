@@ -10,25 +10,23 @@ public:
   
   using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
   CallbackReturn on_configure(const rclcpp_lifecycle::State &) override;
+  CallbackReturn on_activate(const rclcpp_lifecycle::State &) override;
+  CallbackReturn on_deactivate(const rclcpp_lifecycle::State &) override;
+  CallbackReturn on_cleanup(const rclcpp_lifecycle::State &) override;
+  CallbackReturn on_shutdown(const rclcpp_lifecycle::State &) override;
 
 protected:
   void on_leader_received(const std_msgs::msg::Int32::SharedPtr msg) override;
   void run_election_logic() override;
+  void on_heartbeat_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg) override;
   
   void on_token_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg);
   int get_successor();
-  void on_map_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg);
-  void gossip_map();
 
   // Ring token pub and sub
   rclcpp::Publisher<std_msgs::msg::Int32MultiArray>::SharedPtr token_pub_;
   rclcpp::Subscription<std_msgs::msg::Int32MultiArray>::SharedPtr token_sub_;
 
-  // Network map pub and sub
-  rclcpp::Publisher<std_msgs::msg::Int32MultiArray>::SharedPtr map_pub_;
-  rclcpp::Subscription<std_msgs::msg::Int32MultiArray>::SharedPtr map_sub_;
-  rclcpp::TimerBase::SharedPtr gossip_timer_;
-  
   // Election state for aggregation
   std::set<int> known_candidates_;
 
@@ -36,6 +34,12 @@ private:
   void publish_heartbeat() override;
   void run_health_check() override;
   
+  // Watchdog
+  rclcpp::TimerBase::SharedPtr watchdog_timer_;
+  void on_watchdog_timeout();
+  std_msgs::msg::Int32MultiArray pending_token_;
+  int monitored_successor_;
+
   // Startup delay
   bool election_ready_;
   rclcpp::TimerBase::SharedPtr startup_timer_;

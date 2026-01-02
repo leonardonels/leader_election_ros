@@ -18,13 +18,13 @@ SimpleAgent::on_configure(const rclcpp_lifecycle::State &)
   rclcpp::QoS qos_profile(1); // Keep last 1
   qos_profile.best_effort();  // UDP-like behavior (faster, less overhead)
 
-  heartbeat_pub_ = this->create_publisher<std_msgs::msg::Int32>("/election/heartbeats", qos_profile);
+  heartbeat_pub_ = this->create_publisher<std_msgs::msg::Int32MultiArray>("/election/heartbeats", qos_profile);
   
   timer_ = this->create_wall_timer(
     std::chrono::milliseconds(heartbeat_interval_ms_),
     std::bind(&SimpleAgent::publish_heartbeat, this));
 
-  heartbeat_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+  heartbeat_sub_ = this->create_subscription<std_msgs::msg::Int32MultiArray>(
     "/election/heartbeats", 
     qos_profile, 
     std::bind(&SimpleAgent::on_heartbeat_received, this, std::placeholders::_1));
@@ -84,17 +84,18 @@ SimpleAgent::on_shutdown(const rclcpp_lifecycle::State &)
 void SimpleAgent::publish_heartbeat()
 {
   if (heartbeat_pub_->is_activated()) {
-    std_msgs::msg::Int32 msg;
-    msg.data = id_;
+    std_msgs::msg::Int32MultiArray msg;
+    msg.data.push_back(id_);
     heartbeat_pub_->publish(msg);
     // RCLCPP_DEBUG(get_logger(), "Agent %d sent heartbeat", id_);
   }
 }
 
-void SimpleAgent::on_heartbeat_received(const std_msgs::msg::Int32::SharedPtr msg)
+void SimpleAgent::on_heartbeat_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg)
 {
+  if (msg->data.empty()) return;
   // Update the timestamp for this agent ID
-  last_heartbeat_map_[msg->data] = this->now();
+  last_heartbeat_map_[msg->data[0]] = this->now();
 }
 
 void SimpleAgent::on_leader_received(const std_msgs::msg::Int32::SharedPtr msg)
