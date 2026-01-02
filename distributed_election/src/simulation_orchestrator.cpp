@@ -5,6 +5,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "distributed_election/bully_agent.hpp"
+#include "distributed_election/ring_agent.hpp"
 #include "lifecycle_msgs/msg/state.hpp"
 
 #include "std_msgs/msg/int32.hpp"
@@ -18,6 +19,7 @@ public:
     this->declare_parameter("num_agents", 3);
     this->declare_parameter("heartbeat_interval_ms", 1000);
     this->declare_parameter("nodes_name_prefix", "agent_");
+    this->declare_parameter("agent_type", "bully");
     
     create_agents();
     
@@ -48,7 +50,17 @@ public:
   void spawn_agent(int id, int heartbeat_interval, const std::string & prefix)
   {
       std::string node_name = prefix + std::to_string(id);
-      auto agent = std::make_shared<distributed_election::BullyAgent>(node_name, id, heartbeat_interval);
+      std::string agent_type = this->get_parameter("agent_type").as_string();
+      
+      std::shared_ptr<distributed_election::SimpleAgent> agent;
+
+      if (agent_type == "ring") {
+        agent = std::make_shared<distributed_election::RingAgent>(node_name, id, heartbeat_interval);
+      } else {
+        // Default to bully
+        agent = std::make_shared<distributed_election::BullyAgent>(node_name, id, heartbeat_interval);
+      }
+
       agents_.push_back(agent);
       
       executor_->add_node(agent->get_node_base_interface());
@@ -95,7 +107,7 @@ public:
 
 private:
   rclcpp::Executor * executor_;
-  std::vector<std::shared_ptr<distributed_election::BullyAgent>> agents_;
+  std::vector<std::shared_ptr<distributed_election::SimpleAgent>> agents_;
   rclcpp::TimerBase::SharedPtr cleanup_timer_;
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr revival_sub_;
 };
