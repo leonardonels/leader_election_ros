@@ -39,10 +39,17 @@ private:
   void on_watchdog_timeout();
   std_msgs::msg::Int32MultiArray pending_token_;
   int monitored_successor_;
+  rclcpp::Time last_token_;
 
   // Startup delay
   bool election_ready_;
   rclcpp::TimerBase::SharedPtr startup_timer_;
   void on_startup_timer();
+
+  // Easy timers
+  int startup_time;
+  int health_time;
+  int watchdog_time;
+  int timeout_time;
 };
 }

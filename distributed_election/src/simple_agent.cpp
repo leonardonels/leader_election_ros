@@ -69,6 +69,11 @@ SimpleAgent::on_cleanup(const rclcpp_lifecycle::State &)
   // RCLCPP_INFO(get_logger(), "Cleaning up agent %d", id_);
   heartbeat_pub_.reset();
   timer_.reset();
+  heartbeat_sub_.reset();
+  election_pub_.reset();
+  election_sub_.reset();
+  revival_pub_.reset();
+  health_check_timer_.reset();
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
 
@@ -78,6 +83,11 @@ SimpleAgent::on_shutdown(const rclcpp_lifecycle::State &)
   // RCLCPP_INFO(get_logger(), "Shutting down agent %d", id_);
   heartbeat_pub_.reset();
   timer_.reset();
+  heartbeat_sub_.reset();
+  election_pub_.reset();
+  election_sub_.reset();
+  revival_pub_.reset();
+  health_check_timer_.reset();
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
 

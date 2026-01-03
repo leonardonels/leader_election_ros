@@ -20,6 +20,17 @@ RingAgent::on_configure(const rclcpp_lifecycle::State & state)
   }
 
   // ----------------------------------- Ring Agent Setup -----------------------------------
+  startup_time = 3;
+  health_time = 2;
+  watchdog_time = health_time + 1;
+  timeout_time = health_time * 3;
+
+  // Re-create health check timer to respect the new health_time variable
+  // SimpleAgent creates it with a hardcoded value, so we override it here.
+  health_check_timer_ = this->create_wall_timer(
+    std::chrono::milliseconds(heartbeat_interval_ms_ * health_time),
+    std::bind(&RingAgent::run_health_check, this));
+
   rclcpp::QoS qos_profile(1);
   qos_profile.best_effort();
   
@@ -31,11 +42,11 @@ RingAgent::on_configure(const rclcpp_lifecycle::State & state)
     std::bind(&RingAgent::on_token_received, this, std::placeholders::_1));
 
   startup_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(heartbeat_interval_ms_ * 2),
+    std::chrono::milliseconds(heartbeat_interval_ms_ * startup_time),
     std::bind(&RingAgent::on_startup_timer, this));
 
   watchdog_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(heartbeat_interval_ms_ * 3),
+    std::chrono::milliseconds(heartbeat_interval_ms_ * watchdog_time),
     std::bind(&RingAgent::on_watchdog_timeout, this));
   watchdog_timer_->cancel(); // Start only when expecting a forward
 
@@ -44,15 +55,8 @@ RingAgent::on_configure(const rclcpp_lifecycle::State & state)
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 RingAgent::on_activate(const rclcpp_lifecycle::State & state)
-{
-  SimpleAgent::on_activate(state);
-  
-  // Announce self to allow others to build map
-  std_msgs::msg::Int32MultiArray msg;
-  msg.data.push_back(id_);
-  heartbeat_pub_->publish(msg);
-  
-  return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
+{  
+  return SimpleAgent::on_activate(state);
 }
 
 rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
@@ -87,7 +91,19 @@ void RingAgent::on_startup_timer()
 {
   startup_timer_->cancel();
   election_ready_ = true;
-  RCLCPP_INFO(get_logger(), "Startup delay finished. Ring Agent ready.");
+  // Initialize last_token_ to current time to avoid immediate timeout
+  last_token_ = this->now();
+
+  // Announce self to allow others to build map
+  std_msgs::msg::Int32MultiArray msg;
+  msg.data.push_back(id_);
+  heartbeat_pub_->publish(msg);
+
+  run_election_logic();
+
+  publish_heartbeat();
+
+  RCLCPP_INFO(get_logger(), "Agent %d is now ready for elections.", id_);
 }
 
 void RingAgent::on_leader_received(const std_msgs::msg::Int32::SharedPtr msg)
@@ -97,86 +113,73 @@ void RingAgent::on_leader_received(const std_msgs::msg::Int32::SharedPtr msg)
   RCLCPP_INFO(get_logger(), "Agent %d acknowledges new leader: Agent %d", id_, leader_id_);
 }
 
-// Ring heartbeat to reduce node computation
-// Since the node will still read the message to verify it's the intended recipient the traffic overhead is still there
 void RingAgent::publish_heartbeat()
 {
-  // Passive: Do nothing. Leader initiates cycle in run_health_check.
+  if (!election_ready_) return;
+
+  if (heartbeat_pub_->is_activated() && leader_id_ == id_) {
+    std_msgs::msg::Int32MultiArray msg;
+    msg.data.push_back(id_);
+    msg.data.push_back(get_successor());
+    heartbeat_pub_->publish(msg);
+    // RCLCPP_DEBUG(get_logger(), "Agent %d sent heartbeat", id_);
+  }
 }
 
 void RingAgent::on_heartbeat_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg)
 {
-  if (msg->data.empty()) return;
+  if (msg->data.size() < 1) return; // not valid
 
-  int sender_id = msg->data[0];
-
-  // Watchdog Logic: If I sent to 'sender' (who is my successor), and now 'sender' is forwarding/responding, it's alive.
-  if (sender_id == monitored_successor_) {
-    watchdog_timer_->cancel();
-  }
-
-  // Case 1: Announcement [ID]
+  // if (msg->data.size() == 1) it corresponds to a node announcing itself
   if (msg->data.size() == 1) {
-    last_heartbeat_map_[sender_id] = this->now();
+    last_heartbeat_map_[msg->data[0]] = this->now();
     return;
   }
 
-  // Case 2: Token [Sender, Target, ...Payload...]
-  int target_id = msg->data[1];
+  // if (msg->data.size() >= 2) it corresponds to a ring heartbeat with every predecessor in it
+  // meaning that i don't need to add myself since i'm the successor, but still need to add my successor
+  int heartbeat_size = msg->data.size();
+  if (msg->data[heartbeat_size - 1] == id_){  // it's for me
 
-  if (target_id == id_) {
-    // It's for me.
-    last_heartbeat_map_[sender_id] = this->now();
-
-    // If I am leader and this is the return of the token
-    if (leader_id_ == id_ && msg->data.size() > 2 && msg->data[2] == id_) {
-       // Cycle Complete. Analyze payload.
-       // Payload starts at index 2: [Leader, Node1, Node2...]
-       std::set<int> active_nodes;
-       for (size_t i = 2; i < msg->data.size(); ++i) {
-         active_nodes.insert(msg->data[i]);
-       }
-       
-       // Check for missing nodes from our known map
-       for (const auto & entry : last_heartbeat_map_) {
-         if (active_nodes.find(entry.first) == active_nodes.end() && entry.first != id_) {
-           RCLCPP_WARN(get_logger(), "Leader detected node %d missing from ring cycle.", entry.first);
-           std_msgs::msg::Int32 revive_msg;
-           revive_msg.data = entry.first;
-           revival_pub_->publish(revive_msg);
-         }
-       }
-       
-       // ACK the cycle completion so predecessor knows I'm alive
-       std_msgs::msg::Int32MultiArray ack_msg;
-       ack_msg.data.push_back(id_);
-       heartbeat_pub_->publish(ack_msg);
-       
-       return;
+    // save a timestamp of the last token received
+    last_token_ = this->now();
+    
+    for (int i = 0; i < heartbeat_size; ++i) {  // last entry is myself
+      last_heartbeat_map_[msg->data[i]] = this->now();
     }
 
-    // Forwarding Logic
-    std_msgs::msg::Int32MultiArray new_token = *msg;
-    new_token.data[0] = id_; // Sender is me
+    // if i'm the leader start a new heartbeat
+    if (leader_id_ == id_){
+      // Leader relies on the periodic timer to generate heartbeats.
+      // Immediate regeneration here would cause token flooding.
+      return;
+    }
     
-    // Append self to payload if not already there (it shouldn't be)
-    new_token.data.push_back(id_);
-    
+    // now let's continue the ring by sending to my successor
     int successor = get_successor();
-    new_token.data[1] = successor; // Target is successor
+    if (successor == id_) return; // am I alone?
     
-    heartbeat_pub_->publish(new_token);
+    msg->data.push_back(successor);
+    heartbeat_pub_->publish(*msg);
+    pending_token_ = *msg;
     
-    // Start Watchdog
+    // Start watchdog for successor
     monitored_successor_ = successor;
-    pending_token_ = new_token; // Save for retry
-    watchdog_timer_->reset();
+    if (watchdog_timer_) {
+      watchdog_timer_->reset();
+    }
+  }else if(msg->data[heartbeat_size - 1] == monitored_successor_){
+    // Forwarded heartbeat from my predecessor to my monitored successor
+    last_heartbeat_map_[msg->data[heartbeat_size - 1]] = this->now();
+    
+    // Stop watchdog as token successfully forwarded
+    if (watchdog_timer_) watchdog_timer_->cancel();
   }
 }
 
 void RingAgent::on_watchdog_timeout()
 {
-  watchdog_timer_->cancel();
+  if (watchdog_timer_) watchdog_timer_->cancel();
   RCLCPP_WARN(get_logger(), "Watchdog timeout! Successor %d failed to forward token.", monitored_successor_);
   
   // Mark successor as dead (locally) so get_successor skips it
@@ -185,11 +188,16 @@ void RingAgent::on_watchdog_timeout()
   
   // Retry with new successor
   int new_successor = get_successor();
-  if (new_successor == id_) return; // Alone
+  if (new_successor == id_) return; // am I alone?
   
   RCLCPP_INFO(get_logger(), "Retrying token forward to new successor %d", new_successor);
   
-  pending_token_.data[1] = new_successor;
+  int token_size = pending_token_.data.size();
+  if (token_size < 1) {
+    RCLCPP_ERROR(get_logger(), "No pending token to forward!");
+    return;
+  }
+  pending_token_.data[token_size - 1] = new_successor;
   heartbeat_pub_->publish(pending_token_);
   
   monitored_successor_ = new_successor;
@@ -198,21 +206,31 @@ void RingAgent::on_watchdog_timeout()
 
 void RingAgent::run_health_check()
 {
-  // Leader initiates the heartbeat cycle
-  if (leader_id_ == id_ && election_ready_) {
-    int successor = get_successor();
-    if (successor == id_) return;
+  // if i'm the leader, no need to check if the leader is alive, but need to check every node and revive dead nodes
+  if (leader_id_ == id_) {
+    rclcpp::Time now = this->now();
+    for (const auto & entry : last_heartbeat_map_) {
+      int other_id = entry.first;
+      if (other_id == id_) continue;
+      if ((now - entry.second).nanoseconds() * 1e-6 > heartbeat_interval_ms_ * health_time) {
+        RCLCPP_WARN(get_logger(), "Leader %d detected failure of Agent %d", id_, other_id);
+        std_msgs::msg::Int32 msg;
+        msg.data = other_id;
+        revival_pub_->publish(msg);
+      }
+    }
+    return;
+  }
+  
+  // each node verify how old is the newest heartbeat in the map (that corresponds to the last token seen)
+  // if it is too old, assume that the leader is dead and start a new election
+  int successor = get_successor();
+  if (successor == id_) return; // am I alone?
 
-    std_msgs::msg::Int32MultiArray token;
-    token.data.push_back(id_);       // Sender
-    token.data.push_back(successor); // Target
-    token.data.push_back(id_);       // Payload Start (Leader)
-    
-    heartbeat_pub_->publish(token);
-    
-    monitored_successor_ = successor;
-    pending_token_ = token;
-    watchdog_timer_->reset();
+  rclcpp::Time now = this->now();
+  if (now - last_token_ > rclcpp::Duration::from_seconds(heartbeat_interval_ms_ * timeout_time / 1000.0)) {
+    RCLCPP_WARN(get_logger(), "No token received recently. Assuming leader %d is dead. Starting new election.", leader_id_);
+    run_election_logic();
   }
 }
 
