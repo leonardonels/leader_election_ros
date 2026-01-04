@@ -1,12 +1,13 @@
 simulation_orchestrator:
   ros__parameters:
-    num_agents: 10
-    heartbeat_interval_ms: 500
+    num_agents: 5
+    heartbeat_interval_ms: 100
+    heartbeat_max_tick: 10              # Increased for more stable failure detection
     nodes_name_prefix: "agent_"
     agent_type: "ring"                    # Options: "bully", "hybrid_ring", ring"
 
 chaos_monkey:
   ros__parameters:
-    discovery_time_s: 10
-    kill_interval_s: 5
+    discovery_time_s: 5
+    kill_interval_s: 10
     target_nodes_prefix: "agent_"

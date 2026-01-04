@@ -18,7 +18,8 @@ public:
   : Node("simulation_orchestrator"), executor_(executor)
   {
     this->declare_parameter("num_agents", 3);
-    this->declare_parameter("heartbeat_interval_ms", 1000);
+    this->declare_parameter("heartbeat_interval_ms", 100);
+    this->declare_parameter("heartbeat_max_tick", 5);
     this->declare_parameter("nodes_name_prefix", "agent_");
     this->declare_parameter("agent_type", "bully");
     
@@ -52,13 +53,14 @@ public:
   {
       std::string node_name = prefix + std::to_string(id);
       std::string agent_type = this->get_parameter("agent_type").as_string();
+      int heartbeat_max_tick = this->get_parameter("heartbeat_max_tick").as_int();
       
       std::shared_ptr<distributed_election::SimpleAgent> agent;
 
       if (agent_type == "bully") {
         agent = std::make_shared<distributed_election::BullyAgent>(node_name, id, heartbeat_interval);
       } else if (agent_type == "ring") {
-        agent = std::make_shared<distributed_election::RingAgent>(node_name, id, heartbeat_interval);
+        agent = std::make_shared<distributed_election::RingAgent>(node_name, id, heartbeat_interval, heartbeat_max_tick);
       } else if (agent_type == "hybrid_ring") {
         agent = std::make_shared<distributed_election::HybridRingAgent>(node_name, id, heartbeat_interval);
       } else {
@@ -89,6 +91,9 @@ public:
         }
       }
     }
+
+    // Cleanup dead agents before revival to prevent race conditions and duplicates
+    cleanup_dead_agents();
 
     RCLCPP_INFO(this->get_logger(), "Reviving agent %d...", target_id);
     int heartbeat_interval = this->get_parameter("heartbeat_interval_ms").as_int();
