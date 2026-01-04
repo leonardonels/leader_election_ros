@@ -39,7 +39,7 @@ SimpleAgent::on_configure(const rclcpp_lifecycle::State &)
   revival_pub_ = this->create_publisher<std_msgs::msg::Int32>("/election/revive", qos_profile);
 
   health_check_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(heartbeat_interval_ms_ * 3),
+    std::chrono::milliseconds(heartbeat_interval_ms_),
     std::bind(&SimpleAgent::run_health_check, this));
 
   // -----------------------------------------------------------------------------------

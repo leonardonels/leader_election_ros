@@ -37,13 +37,15 @@ RingAgent::on_configure(const rclcpp_lifecycle::State & state)
     std::chrono::milliseconds(heartbeat_interval_ms_ * 10),
     std::bind(&RingAgent::on_startup_timer, this));
 
+  // Use shorter timeout (3x heartbeat) for fast token forwarding failure detection
   watchdog_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(heartbeat_interval_ms_ * heartbeat_max_tick_),
+    std::chrono::milliseconds(heartbeat_interval_ms_ * 3),
     std::bind(&RingAgent::on_watchdog_timeout, this));
   watchdog_timer_->cancel(); // Start only when expecting a forward
 
+  // Use moderate timeout (5x heartbeat) for election token forwarding
   election_watchdog_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(heartbeat_interval_ms_ * heartbeat_max_tick_),
+    std::chrono::milliseconds(heartbeat_interval_ms_ * 5),
     std::bind(&RingAgent::on_election_watchdog_timeout, this));
   election_watchdog_timer_->cancel();
 
@@ -255,7 +257,9 @@ void RingAgent::run_health_check()
       int other_id = entry.first;
       if (other_id == id_) continue;
       
-      if (current_tick_ - entry.second > heartbeat_max_tick_ * int(last_heartbeat_tick_map_.size())) {
+      // Use fixed threshold (heartbeat_max_tick) instead of scaling by map size
+      // This ensures consistent failure detection time regardless of cluster size
+      if (current_tick_ - entry.second > heartbeat_max_tick_) {
         RCLCPP_INFO(get_logger(), "Leader %d detected failure of Agent %d (tick diff: %d)", id_, other_id, current_tick_ - entry.second);
         std_msgs::msg::Int32 msg;
         msg.data = other_id;
@@ -269,7 +273,7 @@ void RingAgent::run_health_check()
       RCLCPP_WARN(get_logger(), "Agent %d has never received heartbeat from leader Agent %d", id_, leader_id_);
       run_election_logic(); 
       return;
-    }else if (current_tick_ - last_heartbeat_tick_map_[leader_id_] > heartbeat_max_tick_ * int(last_heartbeat_tick_map_.size())) {
+    }else if (current_tick_ - last_heartbeat_tick_map_[leader_id_] > heartbeat_max_tick_) {
       RCLCPP_WARN(get_logger(), "Agent %d detected failure of leader Agent %d (tick diff: %d)", id_, leader_id_, current_tick_ - last_heartbeat_tick_map_[leader_id_]);
       run_election_logic(); 
       return;
