@@ -2,7 +2,7 @@ simulation_orchestrator:
   ros__parameters:
     num_agents: 5
     heartbeat_interval_ms: 100
-    heartbeat_max_tick: 10              # Increased for more stable failure detection
+    heartbeat_max_tick: 10              # Increased tolerance for network latency
     nodes_name_prefix: "agent_"
     agent_type: "ring"                    # Options: "bully", "hybrid_ring", ring"
 

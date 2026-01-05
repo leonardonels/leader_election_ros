@@ -105,7 +105,7 @@ void BullyAgent::on_startup_timer()
   }
 }
 
-// When some process recognize that the current leader (run_health_check) is no longer active, it calls for an election.
+// When some process recognize that the current leader (on_heartbeat) is no longer active, it calls for an election.
 void BullyAgent::run_election_logic()
 {  
   if (!election_ready_) {

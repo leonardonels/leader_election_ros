@@ -30,7 +30,7 @@ class SimpleAgent : public rclcpp_lifecycle::LifecycleNode
   virtual void run_election_logic();
   virtual void publish_heartbeat();
   virtual void on_heartbeat_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg);
-  virtual void run_health_check();
+  virtual void on_heartbeat();
   
   int id_;
   int32_t leader_id_;
@@ -41,7 +41,7 @@ class SimpleAgent : public rclcpp_lifecycle::LifecycleNode
   // Map of Agent ID -> Last time seen
   std::map<int, rclcpp::Time> last_heartbeat_map_;
   rclcpp::Subscription<std_msgs::msg::Int32MultiArray>::SharedPtr heartbeat_sub_;
-  rclcpp::TimerBase::SharedPtr health_check_timer_;
+  rclcpp::TimerBase::SharedPtr heartbeat_timer;
 
   // Leader election pub and sub
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr election_pub_;

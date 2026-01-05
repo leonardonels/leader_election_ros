@@ -27,25 +27,27 @@ protected:
   rclcpp::Publisher<std_msgs::msg::Int32MultiArray>::SharedPtr token_pub_;
   rclcpp::Subscription<std_msgs::msg::Int32MultiArray>::SharedPtr token_sub_;
 
+  // Ping mechanism for leader to verify node status
+  rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr ping_pub_;
+  rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr ping_sub_;
+  void on_ping_received(const std_msgs::msg::Int32::SharedPtr msg);
+
 private:
   void publish_heartbeat() override;
-  void run_health_check() override;
+  void on_heartbeat() override;
   
   // Watchdog
-  rclcpp::TimerBase::SharedPtr watchdog_timer_;
-  void on_watchdog_timeout();
-  std_msgs::msg::Int32MultiArray pending_token_;
   int monitored_successor_;
 
   // Election Watchdog
-  rclcpp::TimerBase::SharedPtr election_watchdog_timer_;
-  void on_election_watchdog_timeout();
-  std_msgs::msg::Int32MultiArray pending_election_token_;
   int monitored_election_successor_;
   
   // Counter-based liveness  
   int last_token_tick_, current_tick_, heartbeat_max_tick_;
   std::map<int, int> last_heartbeat_tick_map_;
+
+  // Leader tracks when nodes were last pinged
+  std::map<int, int> last_ping_tick_;
 
   // Startup timer
   bool election_ready_;
