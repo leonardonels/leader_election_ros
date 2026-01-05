@@ -46,6 +46,9 @@ private:
   int last_token_tick_, current_tick_, heartbeat_max_tick_;
   std::map<int, int> last_heartbeat_tick_map_;
 
+  // Track when leader's heartbeat token last returned
+  int last_token_return_tick_;
+
   // Leader tracks when nodes were last pinged
   std::map<int, int> last_ping_tick_;
 

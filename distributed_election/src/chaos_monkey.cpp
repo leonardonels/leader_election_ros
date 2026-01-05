@@ -21,17 +21,30 @@ public:
     this->declare_parameter("target_nodes_prefix", "agent_");
     this->declare_parameter("kill_interval_s", 5);
     this->declare_parameter("discovery_time_s", 10);
+    this->declare_parameter("reverse_order", false);
 
     // wait for discovery time
     // it's safe to assume that for a short period after startup all nodes are up and running before facing ipotetical failures
     int discovery_time = this->get_parameter("discovery_time_s").as_int();
     RCLCPP_INFO(this->get_logger(), "Chaos Monkey waiting %d seconds simulating a correct initialization", discovery_time);
-    rclcpp::sleep_for(std::chrono::seconds(discovery_time));
 
     timer_ = this->create_wall_timer(
       std::chrono::seconds(this->get_parameter("kill_interval_s").as_int()),
       std::bind(&ChaosMonkey::kill_random_node, this));
       
+    if (discovery_time > 0) 
+    {
+    timer_->cancel();
+    
+    disovery_timer_ = this->create_wall_timer(
+      std::chrono::seconds(discovery_time),
+      [this]() {
+        RCLCPP_INFO(this->get_logger(), "Chaos Monkey starting node failures");
+        timer_->reset();
+        disovery_timer_->cancel();
+      });
+    }
+
     rng_.seed(std::random_device()());
   }
 
@@ -55,7 +68,11 @@ private:
     }
     
     // Sort candidates to ensure higher indices correspond to "higher" nodes (lexicographically)
-    std::sort(target_candidates.begin(), target_candidates.end());
+    if (this->get_parameter("reverse_order").as_bool()) {
+      std::sort(target_candidates.rbegin(), target_candidates.rend());
+    } else {
+      std::sort(target_candidates.begin(), target_candidates.end());
+    }
 
     // Create weights: higher index -> higher weight
     // Example: Linear weights (1, 2, 3, 4, 5...)
@@ -133,6 +150,7 @@ private:
   }
 
   rclcpp::TimerBase::SharedPtr timer_;
+  rclcpp::TimerBase::SharedPtr disovery_timer_;
   std::mt19937 rng_;
 };
 

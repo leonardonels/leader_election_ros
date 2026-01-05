@@ -137,6 +137,7 @@ void RingAgent::on_startup_timer()
     last_token_tick_ = 0;
     current_tick_ = 0;
     leader_id_ = -1;
+    last_token_return_tick_ = 0;
 
     // Announce self to allow others to build map
     std_msgs::msg::Int32MultiArray msg;
@@ -161,6 +162,59 @@ void RingAgent::on_heartbeat()
   // if i'm leader, send heartbeat and check for dead members
   if (leader_id_ == id_) {
     publish_heartbeat();
+    
+    // Check all known nodes for failures (not just when token returns)
+    for (const auto & entry : last_heartbeat_tick_map_) {
+      int other_id = entry.first;
+      if (other_id == id_) continue;
+
+      // Check if node is dead based on timestamp
+      if (current_tick_ - entry.second > heartbeat_max_tick_) {
+        // Check if we already pinged this node recently
+        auto ping_it = last_ping_tick_.find(other_id);
+        if (ping_it == last_ping_tick_.end()) {
+          // Never pinged - send ping first
+          RCLCPP_INFO(get_logger(), "Leader %d pinging Agent %d (tick diff: %d)", id_, other_id, current_tick_ - entry.second);
+          std_msgs::msg::Int32 ping_msg;
+          ping_msg.data = other_id;
+          ping_pub_->publish(ping_msg);
+          last_ping_tick_[other_id] = current_tick_;
+        } else if (current_tick_ - ping_it->second > heartbeat_max_tick_) {
+          // Pinged but no response - try revival
+          RCLCPP_WARN(get_logger(), "Leader %d detected failure of Agent %d, attempting revival (tick diff: %d)", id_, other_id, current_tick_ - entry.second);
+          std_msgs::msg::Int32 revival_msg;
+          revival_msg.data = other_id;
+          revival_pub_->publish(revival_msg);
+          last_ping_tick_.erase(other_id); // Clear ping state after revival attempt
+        }
+      } else {
+        // Node is alive - clear ping state
+        last_ping_tick_.erase(other_id);
+      }
+    }
+    
+    // Check if our token is returning - if not, first hop is likely dead
+    if (current_tick_ - last_token_return_tick_ > heartbeat_max_tick_ && monitored_successor_ != id_) {
+      RCLCPP_INFO(get_logger(), "Leader %d detecting broken ring at first hop (successor %d)", id_, monitored_successor_);
+      // Ping the monitored successor
+      auto ping_it = last_ping_tick_.find(monitored_successor_);
+      if (ping_it == last_ping_tick_.end()) {
+        // Never pinged - send ping first
+        RCLCPP_INFO(get_logger(), "Leader %d pinging first hop Agent %d", id_, monitored_successor_);
+        std_msgs::msg::Int32 ping_msg;
+        ping_msg.data = monitored_successor_;
+        ping_pub_->publish(ping_msg);
+        last_ping_tick_[monitored_successor_] = current_tick_;
+      } else if (current_tick_ - ping_it->second > heartbeat_max_tick_) {
+        // Pinged but no response - try revival
+        RCLCPP_WARN(get_logger(), "Leader %d detected failure at first hop Agent %d, attempting revival", id_, monitored_successor_);
+        std_msgs::msg::Int32 revival_msg;
+        revival_msg.data = monitored_successor_;
+        revival_pub_->publish(revival_msg);
+        last_ping_tick_.erase(monitored_successor_);
+        last_token_return_tick_ = current_tick_; // Reset to avoid spam
+      }
+    }
   // i'm not the leader
   }else{
     // Check leader heartbeat
@@ -232,42 +286,9 @@ void RingAgent::on_heartbeat_received(const std_msgs::msg::Int32MultiArray::Shar
         monitored_successor_ = successor;
         // RCLCPP_INFO(get_logger(), "Agent %d forwarded heartbeat to Agent %d", id_, successor);
       }
-      // but if i'm the leader let's use this token to confirm alive nodes and revive dead ones
+      // but if i'm the leader let's use this token to confirm alive nodes
       else{
-        for (const auto & entry : last_heartbeat_tick_map_) {
-          int other_id = entry.first;
-          if (other_id == id_) continue;
-
-          // check who is missing from the token since has been skipped
-          if (std::find(msg->data.begin(), msg->data.end() -1, other_id) == msg->data.end() -1) {
-            // other_id is missing - verify it's really dead
-            if (current_tick_ - entry.second > heartbeat_max_tick_) {
-              // Check if we already pinged this node recently
-              auto ping_it = last_ping_tick_.find(other_id);
-              if (ping_it == last_ping_tick_.end()) {
-                // Never pinged - send ping first
-                RCLCPP_INFO(get_logger(), "Leader %d pinging Agent %d (tick diff: %d)", id_, other_id, current_tick_ - entry.second);
-                std_msgs::msg::Int32 ping_msg;
-                ping_msg.data = other_id;
-                ping_pub_->publish(ping_msg);
-                last_ping_tick_[other_id] = current_tick_;
-              } else if (current_tick_ - ping_it->second > heartbeat_max_tick_) {
-                // Pinged but no response - try revival
-                RCLCPP_WARN(get_logger(), "Leader %d detected failure of Agent %d, attempting revival (tick diff: %d)", id_, other_id, current_tick_ - entry.second);
-                std_msgs::msg::Int32 revival_msg;
-                revival_msg.data = other_id;
-                revival_pub_->publish(revival_msg);
-                last_ping_tick_.erase(other_id); // Clear ping state after revival attempt
-              }
-            } else {
-              // Node is back - clear ping state
-              last_ping_tick_.erase(other_id);
-            }
-          } else {
-            // Node is in token - clear ping state
-            last_ping_tick_.erase(other_id);
-          }
-        }
+        last_token_return_tick_ = current_tick_; // Token returned successfully
       }
     // not for me
     }else{
@@ -340,6 +361,11 @@ void RingAgent::on_leader_received(const std_msgs::msg::Int32::SharedPtr msg)
     leader_id_ = msg->data;
     
     RCLCPP_INFO(get_logger(), "Agent %d acknowledges new leader: Agent %d", id_, leader_id_);
+    
+    // Announce ourselves to help new leader discover all nodes quickly
+    std_msgs::msg::Int32MultiArray announce_msg;
+    announce_msg.data.push_back(id_);
+    heartbeat_pub_->publish(announce_msg);
   }
 }
 
