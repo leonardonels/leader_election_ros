@@ -151,7 +151,7 @@ When a follower $s$ believes something is wrong with the leader (e.g., it suspec
 2.  $lastTX(s)$: what $s$ has learned to be the most recent transaction, initially being its own value, namely $tx(s)$.
 
 When a server $s^*$ receives $(voteID, voteTX)$, it proceeds as follows:
-*   If $lastTX(s^*) < voteTX$, then $s^*$ just received more up-to-date information on the most recent transaction. In that case it sets:
+*   If $lastTX(s*) < voteTX$, then $s*$ just received more up-to-date information on the most recent transaction. In that case it sets:
     *   $leader(s^*) \leftarrow voteID$
     *   $lastTX(s^*) \leftarrow voteTX$
 *   If $lastTX(s^*) = voteTX$ and $leader(s^*) < voteID$, then $s^*$ knows as much about the most recent transaction as what it was just sent, but its perspective on which server will be the next leader needs to be updated:
