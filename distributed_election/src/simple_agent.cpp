@@ -38,7 +38,7 @@ SimpleAgent::on_configure(const rclcpp_lifecycle::State &)
 
   revival_pub_ = this->create_publisher<std_msgs::msg::Int32>("/election/revive", qos_profile);
 
-  heartbeat_timer = this->create_wall_timer(
+  heartbeat_timer_ = this->create_wall_timer(
     std::chrono::milliseconds(heartbeat_interval_ms_),
     std::bind(&SimpleAgent::on_heartbeat, this));
 
@@ -73,7 +73,7 @@ SimpleAgent::on_cleanup(const rclcpp_lifecycle::State &)
   election_pub_.reset();
   election_sub_.reset();
   revival_pub_.reset();
-  heartbeat_timer.reset();
+  heartbeat_timer_.reset();
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
 
@@ -87,7 +87,7 @@ SimpleAgent::on_shutdown(const rclcpp_lifecycle::State &)
   election_pub_.reset();
   election_sub_.reset();
   revival_pub_.reset();
-  heartbeat_timer.reset();
+  heartbeat_timer_.reset();
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
 

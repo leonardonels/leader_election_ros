@@ -41,7 +41,7 @@ class SimpleAgent : public rclcpp_lifecycle::LifecycleNode
   // Map of Agent ID -> Last time seen
   std::map<int, rclcpp::Time> last_heartbeat_map_;
   rclcpp::Subscription<std_msgs::msg::Int32MultiArray>::SharedPtr heartbeat_sub_;
-  rclcpp::TimerBase::SharedPtr heartbeat_timer;
+  rclcpp::TimerBase::SharedPtr heartbeat_timer_;
 
   // Leader election pub and sub
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr election_pub_;

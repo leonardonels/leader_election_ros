@@ -1,14 +1,42 @@
 simulation_orchestrator:
   ros__parameters:
-    num_agents: 5
-    heartbeat_interval_ms: 100
-    heartbeat_max_tick: 10              # Increased tolerance for network latency
+    num_agents: 10
+    heartbeat_interval_ms: 1000
+    heartbeat_max_tick: 9              # Increased tolerance for network latency
     nodes_name_prefix: "agent_"
     agent_type: "ring"                    # Options: "bully", "hybrid_ring", ring"
 
 chaos_monkey:
   ros__parameters:
-    discovery_time_s: 0
-    kill_interval_s: 10
+    discovery_time_s: 5
+    kill_interval_s: 20
     target_nodes_prefix: "agent_"
     reverse_order: false
+
+# ----------------------------------- Notes -----------------------------------
+
+# ----------------------------------- Ring ------------------------------------
+# the real issue with the ring implementation is the overall complexity of racing conditions and parallel processes
+#
+# with ring implementation every dead node requires heartbeat_max_tick * heartbeat_interval_ms to be detected
+# plus some extra time required for ros2 to affectively revive it
+# plus 2/3 * heartbeat_max_tick * heartbeat_interval_ms to be restarted completely
+# considering the comunication speed negligible compared to the heartbeat intervals
+# meaning that for heartbeat_interval_ms = 1000 and heartbeat_max_tick = 9 the minimum time to revive a node is around 15s
+#
+# tested conditions:
+# simulation_orchestrator:
+#   ros__parameters:
+#     num_agents: 10
+#     heartbeat_interval_ms: 1000
+#     heartbeat_max_tick: 9              # Increased tolerance for network latency
+#     nodes_name_prefix: "agent_"
+#     agent_type: "ring"                    # Options: "bully", "hybrid_ring", ring"
+# 
+# chaos_monkey:
+#   ros__parameters:
+#     discovery_time_s: 5
+#     kill_interval_s: 20
+#     target_nodes_prefix: "agent_"
+#     reverse_order: false
+# ----------------------------------- ---- ------------------------------------

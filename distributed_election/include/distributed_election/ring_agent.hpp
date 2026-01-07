@@ -16,46 +16,42 @@ public:
   CallbackReturn on_shutdown(const rclcpp_lifecycle::State &) override;
 
 protected:
-  void on_leader_received(const std_msgs::msg::Int32::SharedPtr msg) override;
-  void run_election_logic() override;
+  
+  int get_successor();
+  void announce_heartbeat();
+  void forward_heartbeat(std_msgs::msg::Int32MultiArray msg);
+  void forward_token(std_msgs::msg::Int32MultiArray msg);
+  void publish_heartbeat() override;
+  void publish_leader();
+  void revive_agent(int target_id);
+  void share_map();
+
+  void on_startup_timer();
+  
+  void on_heartbeat() override;
   void on_heartbeat_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg) override;
   
+  void run_election_logic() override;
   void on_token_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg);
-  int get_successor();
+  void on_leader_received(const std_msgs::msg::Int32::SharedPtr msg) override;
+  void on_map_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg);
 
   // Ring token pub and sub
   rclcpp::Publisher<std_msgs::msg::Int32MultiArray>::SharedPtr token_pub_;
   rclcpp::Subscription<std_msgs::msg::Int32MultiArray>::SharedPtr token_sub_;
-
-  // Ping mechanism for leader to verify node status
-  rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr ping_pub_;
-  rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr ping_sub_;
-  void on_ping_received(const std_msgs::msg::Int32::SharedPtr msg);
-
-private:
-  void publish_heartbeat() override;
-  void on_heartbeat() override;
   
-  // Watchdog
-  int monitored_successor_;
+  // Map sharing pub and sub
+  rclcpp::Publisher<std_msgs::msg::Int32MultiArray>::SharedPtr map_pub_;
+  rclcpp::Subscription<std_msgs::msg::Int32MultiArray>::SharedPtr map_sub_;
 
-  // Election Watchdog
-  int monitored_election_successor_;
-  
   // Counter-based liveness  
   int last_token_tick_, current_tick_, heartbeat_max_tick_;
   std::map<int, int> last_heartbeat_tick_map_;
-
-  // Track when leader's heartbeat token last returned
-  int last_token_return_tick_;
-
-  // Leader tracks when nodes were last pinged
-  std::map<int, int> last_ping_tick_;
+  std::map<int, int> network_view_map_;
 
   // Startup timer
   bool election_ready_;
   rclcpp::TimerBase::SharedPtr startup_timer_;
-  void on_startup_timer();
 
 };
 }
