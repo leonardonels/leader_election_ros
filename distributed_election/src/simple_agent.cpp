@@ -3,10 +3,11 @@
 namespace distributed_election
 {
 
-SimpleAgent::SimpleAgent(const std::string & node_name, int id, int heartbeat_interval_ms)
+SimpleAgent::SimpleAgent(const std::string & node_name, int id, int heartbeat_interval_ms, int heartbeat_max_tick)
 : rclcpp_lifecycle::LifecycleNode(node_name),
   id_(id),
-  heartbeat_interval_ms_(heartbeat_interval_ms)
+  heartbeat_interval_ms_(heartbeat_interval_ms),
+  heartbeat_max_tick_(heartbeat_max_tick)
 {
 }
 
@@ -20,10 +21,6 @@ SimpleAgent::on_configure(const rclcpp_lifecycle::State &)
 
   heartbeat_pub_ = this->create_publisher<std_msgs::msg::Int32MultiArray>("/election/heartbeats", qos_profile);
   
-  timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(heartbeat_interval_ms_),
-    std::bind(&SimpleAgent::publish_heartbeat, this));
-
   heartbeat_sub_ = this->create_subscription<std_msgs::msg::Int32MultiArray>(
     "/election/heartbeats", 
     qos_profile, 
@@ -68,7 +65,6 @@ SimpleAgent::on_cleanup(const rclcpp_lifecycle::State &)
 {
   // RCLCPP_INFO(get_logger(), "Cleaning up agent %d", id_);
   heartbeat_pub_.reset();
-  timer_.reset();
   heartbeat_sub_.reset();
   election_pub_.reset();
   election_sub_.reset();
@@ -82,7 +78,6 @@ SimpleAgent::on_shutdown(const rclcpp_lifecycle::State &)
 {
   // RCLCPP_INFO(get_logger(), "Shutting down agent %d", id_);
   heartbeat_pub_.reset();
-  timer_.reset();
   heartbeat_sub_.reset();
   election_pub_.reset();
   election_sub_.reset();
@@ -91,35 +86,10 @@ SimpleAgent::on_shutdown(const rclcpp_lifecycle::State &)
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
 
-void SimpleAgent::publish_heartbeat()
+void SimpleAgent::on_heartbeat() 
 {
-  if (heartbeat_pub_->is_activated()) {
-    std_msgs::msg::Int32MultiArray msg;
-    msg.data.push_back(id_);
-    heartbeat_pub_->publish(msg);
-    // RCLCPP_DEBUG(get_logger(), "Agent %d sent heartbeat", id_);
-  }
-}
+  publish_heartbeat();
 
-void SimpleAgent::on_heartbeat_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg)
-{
-  if (msg->data.empty()) return;
-  // Update the timestamp for this agent ID
-  last_heartbeat_map_[msg->data[0]] = this->now();
-}
-
-void SimpleAgent::on_leader_received(const std_msgs::msg::Int32::SharedPtr msg)
-{
-  leader_id_ = msg->data;
-  RCLCPP_INFO(get_logger(), "Agent %d acknowledges new leader: Agent %d", id_, leader_id_);
-}
-
-void SimpleAgent::run_election_logic()
-{  
-}
-
-void SimpleAgent::on_heartbeat()
-{
   rclcpp::Time now = this->now();
 
   // Check leader heartbeat
@@ -129,7 +99,7 @@ void SimpleAgent::on_heartbeat()
       RCLCPP_WARN(get_logger(), "Agent %d has never received heartbeat from leader Agent %d", id_, leader_id_);
       run_election_logic(); 
       return;
-    }else if ((now - last_heartbeat_map_[leader_id_]).nanoseconds() * 1e-6 > heartbeat_interval_ms_ * 2) {
+    }else if ((now - last_heartbeat_map_[leader_id_]).nanoseconds() * 1e-6 > heartbeat_interval_ms_ * heartbeat_max_tick_) {
       RCLCPP_WARN(get_logger(), "Agent %d detected failure of leader Agent %d", id_, leader_id_);
       run_election_logic(); 
       return;
@@ -137,14 +107,66 @@ void SimpleAgent::on_heartbeat()
   }else{
     for (const auto & agent : last_heartbeat_map_) {
       if (agent.first == id_) continue;
-      if ((now - agent.second).nanoseconds() * 1e-6 > heartbeat_interval_ms_ * 2) {
+      if ((now - agent.second).nanoseconds() * 1e-6 > heartbeat_interval_ms_ * heartbeat_max_tick_) {
         RCLCPP_WARN(get_logger(), "Leader %d detected failure of Agent %d", id_, agent.first);
-        std_msgs::msg::Int32 msg;
-        msg.data = agent.first;
-        revival_pub_->publish(msg);
+        revive_agent(agent.first);
       }
     }
   }
+}
+
+void SimpleAgent::announce_heartbeat()
+{
+  std_msgs::msg::Int32MultiArray msg;
+  msg.data.push_back(id_);
+  heartbeat_pub_->publish(msg);
+  // RCLCPP_INFO(get_logger(), "Agent %d announced heartbeat", id_);
+}
+
+void SimpleAgent::publish_heartbeat()
+{
+  std_msgs::msg::Int32MultiArray msg;
+  msg.data.push_back(id_);
+  heartbeat_pub_->publish(msg);
+  // RCLCPP_INFO(get_logger(), "Agent %d sent heartbeat", id_);
+}
+
+void SimpleAgent::on_heartbeat_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg)
+{
+  if (msg->data.empty()) return;
+
+  // safety_check:
+  if (msg->data[0] == -1) return; // invalid announce heartbeat
+  // someone impersonating an agent with id_ -1 can be a security edge case, keep in mind...
+
+  last_heartbeat_map_[msg->data[0]] = this->now();
+  // RCLCPP_INFO(get_logger(), "Agent %d received heartbeat from Agent %d", id_, msg->data[0]);
+}
+
+void SimpleAgent::revive_agent(int target_id)
+{
+  std_msgs::msg::Int32 msg;
+  msg.data = target_id;
+  revival_pub_->publish(msg);
+}
+
+// virtual
+void SimpleAgent::on_leader_received(const std_msgs::msg::Int32::SharedPtr msg)
+{
+  leader_id_ = msg->data;
+  RCLCPP_INFO(get_logger(), "Agent %d acknowledges new leader: Agent %d", id_, leader_id_);
+}
+
+// virtual
+void SimpleAgent::run_election_logic()
+{  
+}
+
+void SimpleAgent::publish_leader()
+{
+  std_msgs::msg::Int32 msg;
+  msg.data = leader_id_;
+  election_pub_->publish(msg);
 }
 
 }  // namespace distributed_election

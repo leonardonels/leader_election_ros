@@ -3,8 +3,8 @@
 namespace distributed_election
 {
 
-BullyAgent::BullyAgent(const std::string & node_name, int id, int heartbeat_interval_ms)
-: SimpleAgent(node_name, id, heartbeat_interval_ms),
+BullyAgent::BullyAgent(const std::string & node_name, int id, int heartbeat_interval_ms, int heartbeat_max_tick)
+: SimpleAgent(node_name, id, heartbeat_interval_ms, heartbeat_max_tick),
   election_ready_(false)
 {
 }

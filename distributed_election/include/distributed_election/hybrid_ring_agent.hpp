@@ -6,7 +6,7 @@ namespace distributed_election
 class HybridRingAgent : public SimpleAgent
 {
 public:
-  HybridRingAgent(const std::string & node_name, int id, int heartbeat_interval_ms);
+  HybridRingAgent(const std::string & node_name, int id, int heartbeat_interval_ms, int heartbeat_max_tick);
   
   using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
   CallbackReturn on_configure(const rclcpp_lifecycle::State &) override;

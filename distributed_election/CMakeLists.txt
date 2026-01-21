@@ -20,6 +20,7 @@ add_executable(simulation_orchestrator
   src/bully_agent.cpp
   src/ring_agent.cpp
   src/hybrid_ring_agent.cpp
+  src/raft_agent.cpp
 )
 ament_target_dependencies(simulation_orchestrator
   rclcpp

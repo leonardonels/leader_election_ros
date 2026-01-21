@@ -5,8 +5,7 @@ namespace distributed_election
 {
 
 RingAgent::RingAgent(const std::string & node_name, int id, int heartbeat_interval_ms, int heartbeat_max_tick)
-: SimpleAgent(node_name, id, heartbeat_interval_ms),
-  heartbeat_max_tick_(heartbeat_max_tick),
+: SimpleAgent(node_name, id, heartbeat_interval_ms, heartbeat_max_tick),
   election_ready_(false)
 {
 }
@@ -51,9 +50,6 @@ RingAgent::on_configure(const rclcpp_lifecycle::State & state)
 
   // will be started after the intial announcement
   heartbeat_timer_->cancel();
-
-  // only the leader strats the heartbeat
-  timer_->cancel();
 
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
@@ -141,13 +137,6 @@ int RingAgent::get_successor()
   return successor_id;
 }
 
-void RingAgent::publish_leader()
-{
-  std_msgs::msg::Int32 msg;
-  msg.data = leader_id_;
-  election_pub_->publish(msg);
-}
-
 // used once only by the leader
 void RingAgent::publish_heartbeat()
 {
@@ -188,13 +177,6 @@ void RingAgent::forward_token(std_msgs::msg::Int32MultiArray msg)
   token_pub_->publish(msg);
 }
 
-void RingAgent::announce_heartbeat()
-{
-  std_msgs::msg::Int32MultiArray msg;
-  msg.data.push_back(id_);
-  heartbeat_pub_->publish(msg);
-}
-
 void RingAgent::share_map()
 {
   std_msgs::msg::Int32MultiArray msg;
@@ -230,13 +212,6 @@ void RingAgent::on_map_received(const std_msgs::msg::Int32MultiArray::SharedPtr 
       share_map();
     }
   }
-}
-
-void RingAgent::revive_agent(int target_id)
-{
-  std_msgs::msg::Int32 msg;
-  msg.data = target_id;
-  revival_pub_->publish(msg);
 }
 
 void RingAgent::on_heartbeat()

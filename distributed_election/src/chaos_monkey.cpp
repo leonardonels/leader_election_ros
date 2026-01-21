@@ -85,6 +85,9 @@ private:
     int index = dist(rng_);
     std::string node_name = target_candidates[index];
 
+    // not a good practice, but whould increase readability
+    RCLCPP_INFO(get_logger(), " ");
+    RCLCPP_INFO(get_logger(), "----------------------------------------");
     RCLCPP_INFO(get_logger(), "Chaos Monkey targeting: %s", node_name.c_str());
     
     std::string get_state_service_name = node_name + "/get_state";

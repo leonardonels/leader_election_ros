@@ -15,7 +15,7 @@ namespace distributed_election
 class SimpleAgent : public rclcpp_lifecycle::LifecycleNode
 {
   public:
-  explicit SimpleAgent(const std::string & node_name, int id, int heartbeat_interval_ms);
+  explicit SimpleAgent(const std::string & node_name, int id, int heartbeat_interval_ms, int heartbeat_max_tick = 2);
 
   using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
@@ -28,6 +28,9 @@ class SimpleAgent : public rclcpp_lifecycle::LifecycleNode
   protected:
   virtual void on_leader_received(const std_msgs::msg::Int32::SharedPtr msg);
   virtual void run_election_logic();
+  virtual void revive_agent(int target_id);
+  virtual void announce_heartbeat();
+  virtual void publish_leader();
   virtual void publish_heartbeat();
   virtual void on_heartbeat_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg);
   virtual void on_heartbeat();
@@ -35,6 +38,7 @@ class SimpleAgent : public rclcpp_lifecycle::LifecycleNode
   int id_;
   int32_t leader_id_;
   int heartbeat_interval_ms_;
+  int heartbeat_max_tick_;
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Int32MultiArray>> heartbeat_pub_;
   rclcpp::TimerBase::SharedPtr timer_;
 

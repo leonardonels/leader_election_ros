@@ -6,7 +6,7 @@ namespace distributed_election
 class BullyAgent : public SimpleAgent
 {
 public:
-  BullyAgent(const std::string & node_name, int id, int heartbeat_interval_ms);
+  BullyAgent(const std::string & node_name, int id, int heartbeat_interval_ms, int heartbeat_max_tick);
   
   using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
   CallbackReturn on_configure(const rclcpp_lifecycle::State &) override;
