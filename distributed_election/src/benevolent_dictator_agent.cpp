@@ -17,6 +17,12 @@ SimpleAgent::CallbackReturn BenevolentDictatorAgent::on_configure(const rclcpp_l
     return ret;
   }
 
+  if (id_ != 0) {
+      // Prevent immediate failure detection at startup by giving the leader a grace period.
+      // We assume the leader is alive when we start.
+      last_heartbeat_map_[0] = this->now();
+  }
+
   // Subscribe to revive topic to sniff traffic
   rclcpp::QoS qos_profile(1);
   qos_profile.best_effort();
@@ -126,6 +132,37 @@ void BenevolentDictatorAgent::on_heartbeat()
       // Note: We will receive our own revive message in on_revive_received via the subscription,
       // which will set leader_revive_sent_ = true and start the watchdog.
     }
+  }
+}
+
+void BenevolentDictatorAgent::on_heartbeat_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg)
+{
+  if (msg->data.empty()) return;
+  int sender_id = msg->data[0];
+
+  bool leader_just_revived = false;
+
+  if (sender_id == 0) {
+    rclcpp::Time now = this->now();
+    // Check if we have seen the leader before
+    if (last_heartbeat_map_.find(0) != last_heartbeat_map_.end()) {
+      double time_diff = (now - last_heartbeat_map_[0]).nanoseconds() * 1e-6;
+      // If time diff is large enough to consider it a revival context.
+      if (time_diff > heartbeat_interval_ms_ * heartbeat_max_tick_) {
+        leader_just_revived = true;
+      }
+    } else {
+      // First time seeing leader 0. 
+      leader_just_revived = true;
+    }
+  }
+
+  // Check parent logic (updates the map)
+  SimpleAgent::on_heartbeat_received(msg);
+
+  if (leader_just_revived && id_ != 0) { 
+    // RCLCPP_INFO(get_logger(), "Agent %d detected Leader 0 revival/return. Sending immediate heartbeat.", id_);
+    publish_heartbeat();
   }
 }
 

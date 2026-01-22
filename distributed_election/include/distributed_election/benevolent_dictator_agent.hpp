@@ -17,6 +17,7 @@ public:
 
 protected:
   void on_heartbeat() override;
+  void on_heartbeat_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg) override;
   void on_revive_received(const std_msgs::msg::Int32::SharedPtr msg);
   void on_watchdog_timeout();
   

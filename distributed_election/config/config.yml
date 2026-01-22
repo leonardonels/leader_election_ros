@@ -8,8 +8,8 @@ simulation_orchestrator:
 
 chaos_monkey:
   ros__parameters:
-    discovery_time_s: 5
-    kill_interval_s: 10 
+    discovery_time_s: 0
+    kill_interval_s: 5 
     target_nodes_prefix: "agent_"
     reverse_order: true
 
