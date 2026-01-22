@@ -6,6 +6,7 @@
 #include <map>
 #include <fstream>
 #include <chrono>
+#include <mutex>
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/int32.hpp"
@@ -19,6 +20,8 @@ struct NodeStats {
     rclcpp::Time last_seen;
     rclcpp::Time death_time; // Time when we considered it dead
     double total_uptime_sec = 0.0;
+    double accumulated_downtime_sec = 0.0;
+    int failure_count = 0;
     int msg_count = 0;
     bool is_alive = false;
 };
@@ -59,6 +62,12 @@ private:
   
   // Track total traffic
   long long total_messages_ = 0;
+  
+  // Leader stats
+  int current_leader_id_ = -1;
+  int leader_change_count_ = 0;
+  
+  std::mutex mutex_;
 };
 
 }  // namespace distributed_election

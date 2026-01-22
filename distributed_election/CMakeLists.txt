@@ -23,6 +23,16 @@ ament_target_dependencies(traffic_logger_lib
   std_msgs
 )
 
+add_library(chaos_monkey_lib
+  src/chaos_monkey.cpp
+)
+ament_target_dependencies(chaos_monkey_lib
+  rclcpp
+  rclcpp_lifecycle
+  std_msgs
+  lifecycle_msgs
+)
+
 add_executable(simulation_orchestrator
   src/simulation_orchestrator.cpp
   src/simple_agent.cpp
@@ -32,7 +42,10 @@ add_executable(simulation_orchestrator
   src/raft_agent.cpp
   src/benevolent_dictator_agent.cpp
 )
-target_link_libraries(simulation_orchestrator traffic_logger_lib)
+target_link_libraries(simulation_orchestrator 
+  traffic_logger_lib
+  chaos_monkey_lib
+)
 ament_target_dependencies(simulation_orchestrator
   rclcpp
   rclcpp_lifecycle
@@ -40,15 +53,16 @@ ament_target_dependencies(simulation_orchestrator
   lifecycle_msgs
 )
 
-add_executable(chaos_monkey
-  src/chaos_monkey.cpp
-)
-ament_target_dependencies(chaos_monkey
-  rclcpp
-  rclcpp_lifecycle
-  std_msgs
-  lifecycle_msgs
-)
+# Disabled standalone chaos_monkey
+# add_executable(chaos_monkey
+#   src/chaos_monkey.cpp
+# )
+# ament_target_dependencies(chaos_monkey
+#   rclcpp
+#   rclcpp_lifecycle
+#   std_msgs
+#   lifecycle_msgs
+# )
 
 # add_executable(traffic_logger
 #   src/traffic_logger.cpp
@@ -60,7 +74,7 @@ ament_target_dependencies(chaos_monkey
 
 install(TARGETS
   simulation_orchestrator
-  chaos_monkey
+#  chaos_monkey
 #  traffic_logger
   DESTINATION lib/${PROJECT_NAME}
 )

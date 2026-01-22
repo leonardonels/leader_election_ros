@@ -16,12 +16,5 @@ def generate_launch_description():
             executable='simulation_orchestrator',
             output='screen',
             parameters=[config]
-        ),
-        Node(
-            package='distributed_election',
-            executable='chaos_monkey',
-            name='chaos_monkey',
-            output='screen',
-            parameters=[config]
         )
     ])

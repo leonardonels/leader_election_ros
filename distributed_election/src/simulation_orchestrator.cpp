@@ -10,6 +10,7 @@
 #include "distributed_election/raft_agent.hpp"
 #include "distributed_election/benevolent_dictator_agent.hpp"
 #include "distributed_election/traffic_logger.hpp"
+#include "distributed_election/chaos_monkey.hpp"
 #include "lifecycle_msgs/msg/state.hpp"
 
 #include "std_msgs/msg/int32.hpp"
@@ -25,13 +26,35 @@ public:
     this->declare_parameter("heartbeat_max_tick", 5);
     this->declare_parameter("nodes_name_prefix", "agent_");
     this->declare_parameter("agent_type", "bully");
+    this->declare_parameter("enable_traffic_logger", true);
+    
+    // Chaos Monkey Params
+    this->declare_parameter("chaos_monkey.kill_interval_s", 5);
+    this->declare_parameter("chaos_monkey.discovery_time_s", 10);
+    this->declare_parameter("chaos_monkey.reverse_order", false);
+    this->declare_parameter("enable_chaos_monkey", true);
     
     create_agents();
     
-    // Start Traffic Logger
+    // Start Traffic Logger if enabled
+    bool enable_logger = this->get_parameter("enable_traffic_logger").as_bool();
     std::string agent_type = this->get_parameter("agent_type").as_string();
-    traffic_logger_ = std::make_shared<distributed_election::TrafficLogger>(agent_type);
-    executor_->add_node(traffic_logger_);
+
+    if (enable_logger) {
+      traffic_logger_ = std::make_shared<distributed_election::TrafficLogger>(agent_type);
+      executor_->add_node(traffic_logger_);
+    }
+    
+    // Start Chaos Monkey if enabled
+    if (this->get_parameter("enable_chaos_monkey").as_bool()) {
+        std::string prefix = this->get_parameter("nodes_name_prefix").as_string();
+        int interval = this->get_parameter("chaos_monkey.kill_interval_s").as_int();
+        int discovery = this->get_parameter("chaos_monkey.discovery_time_s").as_int();
+        bool reverse = this->get_parameter("chaos_monkey.reverse_order").as_bool();
+        
+        chaos_monkey_ = std::make_shared<distributed_election::ChaosMonkey>(prefix, interval, discovery, reverse);
+        executor_->add_node(chaos_monkey_);
+    }
 
     cleanup_timer_ = this->create_wall_timer(
       std::chrono::seconds(1),
@@ -131,6 +154,7 @@ private:
   rclcpp::Executor * executor_;
   std::vector<std::shared_ptr<distributed_election::SimpleAgent>> agents_;
   std::shared_ptr<distributed_election::TrafficLogger> traffic_logger_;
+  std::shared_ptr<distributed_election::ChaosMonkey> chaos_monkey_;
   rclcpp::TimerBase::SharedPtr cleanup_timer_;
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr revival_sub_;
 };

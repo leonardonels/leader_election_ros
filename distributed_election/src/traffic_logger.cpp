@@ -1,6 +1,8 @@
 #include "distributed_election/traffic_logger.hpp"
 
 #include <sstream>
+#include <iomanip>
+#include <iostream>
 
 namespace distributed_election
 {
@@ -20,9 +22,9 @@ TrafficLogger::TrafficLogger(const std::string & agent_type)
       RCLCPP_ERROR(this->get_logger(), "Failed to open log file: %s", filename.c_str());
   }
 
-  // Periodic analysis timer (every 5 seconds)
+  // Periodic analysis timer (every 60 seconds)
   analysis_timer_ = this->create_wall_timer(
-    std::chrono::seconds(30),
+    std::chrono::seconds(60),
     std::bind(&TrafficLogger::periodic_analysis, this));
 
   rclcpp::QoS qos_profile(20);
@@ -80,6 +82,7 @@ TrafficLogger::~TrafficLogger()
 
 void TrafficLogger::log_to_file(const std::string & type, const std::string & data)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (csv_file_.is_open()) {
     double timestamp = this->now().seconds();
     csv_file_ << timestamp << "," << type << ",," << data << "\n"; // No generic NodeID for system events
@@ -88,6 +91,10 @@ void TrafficLogger::log_to_file(const std::string & type, const std::string & da
 
 void TrafficLogger::update_node_stats(int node_id)
 {
+  // Expects mutex to be held by caller since it's a private helper usually called from locked context
+  // BUT: log_heartbeat calls this. If I lock in log_heartbeat, I don't need to lock here.
+  // HOWEVER: update_node_stats is NOT called in log_leader etc.
+  // So: I will lock in the public/callback methods.
   rclcpp::Time now = this->now();
   if (node_stats_.find(node_id) == node_stats_.end()) {
     node_stats_[node_id].first_seen = now;
@@ -100,8 +107,17 @@ void TrafficLogger::update_node_stats(int node_id)
       node_stats_[node_id].is_alive = true;
       
       if (node_stats_[node_id].death_time.nanoseconds() > 0) {
-          double downtime = (now - node_stats_[node_id].death_time).seconds();
+          // Because periodic_analysis runs frequently and death_time is set to 'now' at detection,
+          // the "downtime" is (now - detection_time). 
+          // But real death was at (detection_time - timeout). 
+          // And real revival is 'now'.
+          // So downtime = (now - death_time) + 3.0 (timeout threshold)
+          // This gives a much closer estimate to reality.
+          double downtime = (now - node_stats_[node_id].death_time).seconds() + 3.0; // Add the detection lag
           
+          node_stats_[node_id].accumulated_downtime_sec += downtime;
+          // node_stats_[node_id].failure_count++; // Already incremented on detection
+
           if (csv_file_.is_open()) {
              double timestamp = now.seconds();
              csv_file_ << timestamp << ",REVIVAL_TIME," << node_id << "," << downtime << "\n";
@@ -123,6 +139,7 @@ void TrafficLogger::update_node_stats(int node_id)
 
 void TrafficLogger::periodic_analysis()
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   rclcpp::Time now = this->now();
   double elapsed = (now - start_time_).seconds();
   double rate = total_messages_ / (elapsed > 0 ? elapsed : 1.0);
@@ -133,34 +150,61 @@ void TrafficLogger::periodic_analysis()
     double time_since_last = (now - pair.second.last_seen).seconds();
     if (time_since_last < 3.0) { // 3 seconds timeout threshold for stats
        alive_nodes++;
-       // We considered it alive.
     } else {
        // CONSIDERED DEAD based on traffic
        if (pair.second.is_alive) {
-           // Transition from Alive -> Dead
            pair.second.is_alive = false;
-           // We use the time of "detection" as death time, although the actual death was earlier.
-           // Or we could use last_seen + threshold. Let's use 'now' as the detection time.
            pair.second.death_time = now;
-           RCLCPP_WARN(this->get_logger(), "Node %d considered DEAD (last seen %.1fs ago)", 
-              pair.first, time_since_last);
+           pair.second.failure_count++; // Increment failure count immediately on detection
        }
     }
   }
 
   std::stringstream ss;
-  ss << "Traffic Analysis [Elapsed: " << elapsed << "s] | ";
-  ss << "Msgs: " << total_messages_ << " (" << rate << " msg/s) | ";
-  ss << "Alive Nodes: " << alive_nodes;
+  ss << "\n=== Traffic Analysis [T+" << (int)elapsed << "s] ===\n";
+  ss << "Msgs: " << total_messages_ << " (" << std::fixed << std::setprecision(1) << rate << " msg/s) | Alive: " << alive_nodes << "\n";
+  ss << "Leader Changes: " << leader_change_count_ << " | Current Leader: " << (current_leader_id_ == -1 ? "None" : std::to_string(current_leader_id_)) << "\n";
+  ss << " ID | Status        | Uptime(s) | Failures | MTTR (s)\n";
+  ss << "----|---------------|-----------|----------|---------\n";
   
-  RCLCPP_INFO(this->get_logger(), "%s", ss.str().c_str());
+  for (const auto & pair : node_stats_) {
+      int id = pair.first;
+      const auto & stats = pair.second;
+      
+      std::string status_str;
+      if (stats.is_alive) {
+          status_str = "ALIVE";
+      } else {
+          double current_down = (now - stats.death_time).seconds() + 3.0; // Add detection lag
+          std::stringstream tmp;
+          tmp << "DEAD (" << (int)current_down << "s)";
+          status_str = tmp.str();
+      }
+      
+      double avg_downtime = 0.0;
+      int completed_failures = stats.failure_count;
+      if (!stats.is_alive) completed_failures--; // Don't count current unfinished failure for average
+
+      if (completed_failures > 0) {
+          avg_downtime = stats.accumulated_downtime_sec / completed_failures;
+      }
+      
+      ss << " " << std::setw(2) << id << " | " 
+         << std::left << std::setw(13) << status_str << std::right << " | " 
+         << std::setw(9) << (int)stats.total_uptime_sec << " | " 
+         << std::setw(8) << stats.failure_count << " | " 
+         << std::fixed << std::setprecision(2) << avg_downtime << "\n";
+  }
   
-  // Detailed stats could be logged to file or verbose
+  // Use std::cout directly to avoid log prefixes messing up the table alignment
+  std::cout << ss.str() << std::flush;
 }
 
 void TrafficLogger::log_heartbeat(const std_msgs::msg::Int32MultiArray::SharedPtr msg)
 {
   if (msg->data.empty()) return;
+
+  std::lock_guard<std::mutex> lock(mutex_);
   int sender_id = msg->data[0];
   
   update_node_stats(sender_id);
@@ -175,16 +219,24 @@ void TrafficLogger::log_heartbeat(const std_msgs::msg::Int32MultiArray::SharedPt
 
 void TrafficLogger::log_leader(const std_msgs::msg::Int32::SharedPtr msg)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   total_messages_++;
+  
+  if (msg->data != current_leader_id_) {
+      leader_change_count_++;
+      current_leader_id_ = msg->data;
+      RCLCPP_INFO(this->get_logger(), ">> LEADER CHANGE DETECTED: Node %d (Total Changes: %d) <<", msg->data, leader_change_count_);
+  }
+
   if (csv_file_.is_open()) {
     double timestamp = this->now().seconds();
     csv_file_ << timestamp << ",LEADER,," << msg->data << "\n";
   }
-  RCLCPP_INFO(this->get_logger(), ">> LEADER CHANGE DETECTED: Node %d <<", msg->data);
 }
 
 void TrafficLogger::log_revive(const std_msgs::msg::Int32::SharedPtr msg)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   total_messages_++;
   if (csv_file_.is_open()) {
     double timestamp = this->now().seconds();
@@ -196,6 +248,7 @@ void TrafficLogger::log_revive(const std_msgs::msg::Int32::SharedPtr msg)
 
 void TrafficLogger::log_ring_token(const std_msgs::msg::Int32MultiArray::SharedPtr msg)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   total_messages_++;
   if (csv_file_.is_open()) {
     double timestamp = this->now().seconds();
@@ -205,6 +258,7 @@ void TrafficLogger::log_ring_token(const std_msgs::msg::Int32MultiArray::SharedP
 
 void TrafficLogger::log_map(const std_msgs::msg::Int32MultiArray::SharedPtr msg)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   total_messages_++;
   if (csv_file_.is_open()) {
     double timestamp = this->now().seconds();
@@ -214,6 +268,7 @@ void TrafficLogger::log_map(const std_msgs::msg::Int32MultiArray::SharedPtr msg)
 
 void TrafficLogger::log_vote(const std_msgs::msg::Int32MultiArray::SharedPtr msg)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   total_messages_++;
   if (csv_file_.is_open()) {
     double timestamp = this->now().seconds();

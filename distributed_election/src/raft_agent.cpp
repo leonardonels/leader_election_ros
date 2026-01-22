@@ -175,7 +175,7 @@ void RaftAgent::on_heartbeat_received(const std_msgs::msg::Int32MultiArray::Shar
   // someone impersonating an agent with id_ -1 can be a security edge case, keep in mind...
 
   if (last_heartbeat_map_.find(msg->data[0]) == last_heartbeat_map_.end()) {
-    RCLCPP_INFO(get_logger(), "Agent %d noticed new agent %d", id_, msg->data[0]);
+    // RCLCPP_INFO(get_logger(), "Agent %d noticed new agent %d", id_, msg->data[0]);
   }
   last_heartbeat_map_[msg->data[0]] = this->now();
   // RCLCPP_INFO(get_logger(), "Agent %d received heartbeat from Agent %d", id_, msg->data[0]);

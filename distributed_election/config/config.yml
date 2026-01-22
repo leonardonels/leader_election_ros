@@ -4,14 +4,17 @@ simulation_orchestrator:
     heartbeat_interval_ms: 500
     heartbeat_max_tick: 5              # Increased tolerance for network latency
     nodes_name_prefix: "agent_"
-    agent_type: "benevolent_dictator"     # Options: "bully", "hybrid_ring", ring, raft, benevolent_dictator"
+    agent_type: "raft"     # Options: "bully", "hybrid_ring", ring, raft, benevolent_dictator"
+    enable_traffic_logger: true        # Enable/Disable the traffic analysis logger
+    
+    # Chaos Monkey Settings
+    enable_chaos_monkey: true
+    chaos_monkey.kill_interval_s: 3
+    chaos_monkey.discovery_time_s: 3
+    chaos_monkey.reverse_order: true
 
-chaos_monkey:
-  ros__parameters:
-    discovery_time_s: 3
-    kill_interval_s: 5 
-    target_nodes_prefix: "agent_"
-    reverse_order: true
+# chaos_monkey section is no longer used by standalone node, but orchestrator reads from above
+
 
 # ----------------------------------- Notes -----------------------------------
 
@@ -33,7 +36,8 @@ chaos_monkey:
 #     heartbeat_interval_ms: 1000
 #     heartbeat_max_tick: 9              # Increased tolerance for network latency
 #     nodes_name_prefix: "agent_"
-#     agent_type: "ring"                    # Options: "bully", "hybrid_ring", ring"
+#     agent_type: "ring"                    # Options: "bully", "hybrid_ring", ring, raft, benevolent_dictator"
+#     enable_traffic_logger: true        # Enable/Disable the traffic analysis logger
 # 
 # chaos_monkey:
 #   ros__parameters:
@@ -48,17 +52,36 @@ chaos_monkey:
 # simulation_orchestrator:
 #   ros__parameters:
 #     num_agents: 10
-#     heartbeat_interval_ms: 1000
-#     heartbeat_max_tick: 3              # Increased tolerance for network latency
+#     heartbeat_interval_ms: 500
+#     heartbeat_max_tick: 5
 #     nodes_name_prefix: "agent_"
-#     agent_type: "raft"                    # Options: "bully", "hybrid_ring", ring, raft"
+#     agent_type: "raft"     # Options: "bully", "hybrid_ring", ring, raft, benevolent_dictator"
+#     enable_traffic_logger: true        # Enable/Disable the traffic analysis logger
 # 
 # chaos_monkey:
 #   ros__parameters:
-#     discovery_time_s: 5
-#     kill_interval_s: 10 
+#     discovery_time_s: 3
+#     kill_interval_s: 5 
 #     target_nodes_prefix: "agent_"
-#     reverse_order: false
+#     reverse_order: true
+# 
+# ----------------------------------->
+# the following configuration is quite facinating since the speed of recovery is very similar to the failure rate:
+# simulation_orchestrator:
+#   ros__parameters:
+#     num_agents: 10
+#     heartbeat_interval_ms: 500
+#     heartbeat_max_tick: 5              # Increased tolerance for network latency
+#     nodes_name_prefix: "agent_"
+#     agent_type: "raft"     # Options: "bully", "hybrid_ring", ring, raft, benevolent_dictator"
+#     enable_traffic_logger: true        # Enable/Disable the traffic analysis logger
+# 
+# chaos_monkey:
+#   ros__parameters:
+#     discovery_time_s: 3
+#     kill_interval_s: 3 
+#     target_nodes_prefix: "agent_"
+#     reverse_order: true
 # ----------------------------------- Benevolent Dictator --------------------
 # once a follower node notices a leader failure it revives it, but only the first one that notices it
 #
@@ -70,6 +93,7 @@ chaos_monkey:
 #     heartbeat_max_tick: 5              # Increased tolerance for network latency
 #     nodes_name_prefix: "agent_"
 #     agent_type: "benevolent_dictator"     # Options: "bully", "hybrid_ring", ring, raft, benevolent_dictator"
+#     enable_traffic_logger: true        # Enable/Disable the traffic analysis logger
 # 
 # chaos_monkey:
 #   ros__parameters:
