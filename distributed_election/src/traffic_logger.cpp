@@ -22,9 +22,8 @@ TrafficLogger::TrafficLogger(const std::string & agent_type)
       RCLCPP_ERROR(this->get_logger(), "Failed to open log file: %s", filename.c_str());
   }
 
-  // Periodic analysis timer (every 60 seconds)
   analysis_timer_ = this->create_wall_timer(
-    std::chrono::seconds(60),
+    std::chrono::milliseconds(100),
     std::bind(&TrafficLogger::periodic_analysis, this));
 
   rclcpp::QoS qos_profile(20);
@@ -158,6 +157,11 @@ void TrafficLogger::periodic_analysis()
            pair.second.failure_count++; // Increment failure count immediately on detection
        }
     }
+  }
+
+  // reduce log spam by printing every 30 seconds only
+  if ( ((int)elapsed) % 30 != 0 || ((int)elapsed) == 0) {
+      return;
   }
 
   std::stringstream ss;

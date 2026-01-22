@@ -23,7 +23,8 @@ public:
     const std::string & target_prefix, 
     int kill_interval_s, 
     int discovery_time_s, 
-    bool reverse_order);
+    bool reverse_order,
+    bool reduce_race_conditions);
 
   virtual ~ChaosMonkey() = default;
 
@@ -37,6 +38,9 @@ private:
   std::string target_prefix_;
   int kill_interval_s_;
   bool reverse_order_;
+  bool reduce_race_conditions_;
+
+  int last_killed_id_;
 };
 
 } // namespace distributed_election

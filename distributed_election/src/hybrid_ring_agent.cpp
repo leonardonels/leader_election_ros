@@ -38,12 +38,14 @@ HybridRingAgent::on_configure(const rclcpp_lifecycle::State & state)
     std::bind(&HybridRingAgent::on_map_received, this, std::placeholders::_1));
 
   gossip_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(heartbeat_interval_ms_ * 5),
+    std::chrono::milliseconds(heartbeat_interval_ms_ * heartbeat_max_tick_),
     std::bind(&HybridRingAgent::gossip_map, this));
 
   startup_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(heartbeat_interval_ms_ * 2),
+    std::chrono::milliseconds(heartbeat_interval_ms_ * heartbeat_max_tick_ / 3),
     std::bind(&HybridRingAgent::on_startup_timer, this));
+
+  heartbeat_timer_->cancel();
 
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
@@ -76,9 +78,14 @@ void HybridRingAgent::on_map_received(const std_msgs::msg::Int32MultiArray::Shar
 
 void HybridRingAgent::on_startup_timer()
 {
+  if (!election_ready_) {
+    announce_heartbeat();
+    leader_id_ = -1;
+    election_ready_ = true;
+    heartbeat_timer_->reset();
+    return;
+  }
   startup_timer_->cancel();
-  election_ready_ = true;
-  RCLCPP_INFO(get_logger(), "Startup delay finished. Ring Agent ready.");
 }
 
 void HybridRingAgent::on_leader_received(const std_msgs::msg::Int32::SharedPtr msg)

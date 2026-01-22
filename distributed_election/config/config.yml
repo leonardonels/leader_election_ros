@@ -4,14 +4,15 @@ simulation_orchestrator:
     heartbeat_interval_ms: 500
     heartbeat_max_tick: 5              # Increased tolerance to gain network latency
     nodes_name_prefix: "agent_"
-    agent_type: "bully"     # Options: "bully", "hybrid_ring", ring, raft, benevolent_dictator"
+    agent_type: "hybrid_ring"     # Options: "bully", "hybrid_ring", ring, raft, benevolent_dictator"
     enable_traffic_logger: true        # Enable/Disable the traffic analysis logger
     
     # Chaos Monkey Settings
     enable_chaos_monkey: true
-    chaos_monkey.kill_interval_s: 3
-    chaos_monkey.discovery_time_s: 3
-    chaos_monkey.reverse_order: false
+    chaos_monkey.kill_interval_s: 6   # increase the kill interval allows more time for recovery and reduce race condition issues
+    chaos_monkey.discovery_time_s: 6
+    chaos_monkey.reverse_order: true
+    chaos_monkey.reduce_race_conditions: false
 
 # chaos_monkey section is no longer used by standalone node, but orchestrator reads from above
 

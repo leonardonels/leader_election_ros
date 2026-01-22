@@ -9,15 +9,18 @@ ChaosMonkey::ChaosMonkey(
     const std::string & target_prefix, 
     int kill_interval_s, 
     int discovery_time_s, 
-    bool reverse_order)
+    bool reverse_order,
+    bool reduce_race_conditions)
 : Node("chaos_monkey"), 
   target_prefix_(target_prefix),
   kill_interval_s_(kill_interval_s),
-  reverse_order_(reverse_order)
+  reverse_order_(reverse_order),
+  reduce_race_conditions_(reduce_race_conditions)
 {
   RCLCPP_INFO(this->get_logger(), "Chaos Monkey Configured with Prefix: '%s', Interval: %ds", target_prefix_.c_str(), kill_interval_s_);
 
   rng_.seed(std::random_device()());
+  last_killed_id_ = -1;
 
   if (discovery_time_s > 0) 
   {
@@ -52,6 +55,12 @@ void ChaosMonkey::kill_random_node()
 
   for (const auto & name : node_names) {
     if (name.find(target_prefix_) != std::string::npos) {
+      if (last_killed_id_ != -1) {
+        std::string id_str = name.substr(target_prefix_.length() + 1);
+        if (std::stoi(id_str) == last_killed_id_) {
+            continue; // Skip last killed node to avoid immediate re-kill and reduce race conditions
+        }
+      }
       target_candidates.push_back(name);
     }
   }
@@ -76,6 +85,10 @@ void ChaosMonkey::kill_random_node()
   std::discrete_distribution<int> dist(weights.begin(), weights.end());
   int index = dist(rng_);
   std::string node_name = target_candidates[index];
+  if (reduce_race_conditions_ && target_candidates.size() > 1) {
+      // Further reduce chance of re-killing the same node soon after
+      last_killed_id_ = node_name.substr(target_prefix_.length() + 1) == "" ? -1 : std::stoi(node_name.substr(target_prefix_.length() + 1));
+  }
 
   RCLCPP_INFO(get_logger(), " ");
   RCLCPP_INFO(get_logger(), "Chaos Monkey now targeting: %s", node_name.c_str());

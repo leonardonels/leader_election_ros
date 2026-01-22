@@ -96,7 +96,7 @@ void SimpleAgent::on_heartbeat()
   if (leader_id_ != id_){
     if (last_heartbeat_map_.find(leader_id_) == last_heartbeat_map_.end()) {
       // Never received heartbeat from leader
-      RCLCPP_WARN(get_logger(), "Agent %d has never received heartbeat from leader Agent %d", id_, leader_id_);
+      RCLCPP_WARN(get_logger(), "Agent %d has never received heartbeat from leader Agent, start election logic.", id_);
       run_election_logic(); 
       return;
     }else if ((now - last_heartbeat_map_[leader_id_]).nanoseconds() * 1e-6 > heartbeat_interval_ms_ * heartbeat_max_tick_) {

@@ -34,6 +34,7 @@ public:
     this->declare_parameter("chaos_monkey.discovery_time_s", 10);
     this->declare_parameter("chaos_monkey.reverse_order", false);
     this->declare_parameter("enable_chaos_monkey", true);
+    this->declare_parameter("chaos_monkey.reduce_race_conditions", true);
     
     create_agents();
     
@@ -52,8 +53,9 @@ public:
         int interval = this->get_parameter("chaos_monkey.kill_interval_s").as_int();
         int discovery = this->get_parameter("chaos_monkey.discovery_time_s").as_int();
         bool reverse = this->get_parameter("chaos_monkey.reverse_order").as_bool();
+        bool reduce_race_conditions = this->get_parameter("chaos_monkey.reduce_race_conditions").as_bool();
         
-        chaos_monkey_ = std::make_shared<distributed_election::ChaosMonkey>(prefix, interval, discovery, reverse);
+        chaos_monkey_ = std::make_shared<distributed_election::ChaosMonkey>(prefix, interval, discovery, reverse, reduce_race_conditions);
         executor_->add_node(chaos_monkey_);
     }
 
