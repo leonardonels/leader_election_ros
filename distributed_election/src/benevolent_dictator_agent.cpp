@@ -17,13 +17,15 @@ SimpleAgent::CallbackReturn BenevolentDictatorAgent::on_configure(const rclcpp_l
     return ret;
   }
 
-  if (id_ != 0) {
-      // Prevent immediate failure detection at startup by giving the leader a grace period.
-      // We assume the leader is alive when we start.
-      last_heartbeat_map_[0] = this->now();
-  }
+  // HEARTBEAT SUBSCRIPTION WITH HIGHER QUEUE SIZE to avoid losing heartbeats in busy networks
+  rclcpp::QoS qos_profile_sub(20); 
+  qos_profile_sub.best_effort();
+  
+  heartbeat_sub_ = this->create_subscription<std_msgs::msg::Int32MultiArray>(
+    "/election/heartbeats", 
+    qos_profile_sub, 
+    std::bind(&BenevolentDictatorAgent::on_heartbeat_received, this, std::placeholders::_1));
 
-  // Subscribe to revive topic to sniff traffic
   rclcpp::QoS qos_profile(1);
   qos_profile.best_effort();
   revive_sub_ = this->create_subscription<std_msgs::msg::Int32>(
@@ -31,14 +33,14 @@ SimpleAgent::CallbackReturn BenevolentDictatorAgent::on_configure(const rclcpp_l
     qos_profile, 
     std::bind(&BenevolentDictatorAgent::on_revive_received, this, std::placeholders::_1));
 
-  // Create watchdog timer (initially cancelled)
-  // Timeout: ample time for restart. 
-  // Using 30 * heartbeat interval (e.g., 3s for 100ms HB) to give ample time for revival.
-  int watchdog_ms = heartbeat_interval_ms_ * 30; 
+  // Watchdog timer calculation
+  // We need to resolve max_heartbeat_max_tick_ correctly or use the member variable
+  int watchdog_ms = heartbeat_interval_ms_ * heartbeat_max_tick_ * 3; 
   watchdog_timer_ = this->create_wall_timer(
     std::chrono::milliseconds(watchdog_ms),
     std::bind(&BenevolentDictatorAgent::on_watchdog_timeout, this));
-  watchdog_timer_->cancel();
+
+leader_revive_sent_ = true; // Assume leader is alive at start
 
   return SimpleAgent::CallbackReturn::SUCCESS;
 }
@@ -53,21 +55,29 @@ SimpleAgent::CallbackReturn BenevolentDictatorAgent::on_cleanup(const rclcpp_lif
 
 void BenevolentDictatorAgent::on_revive_received(const std_msgs::msg::Int32::SharedPtr msg)
 {
-  if (msg->data == 0) {
-    // Traffic trying to revive 0 detected.
-    leader_revive_sent_ = true;
-    
-    // Reset watchdog: cancel then reset starts it from 0
-    watchdog_timer_->cancel();
-    watchdog_timer_->reset();
+  if (msg->data == 0) {    
+    // Check if we are stuck in a waiting state for the leader
+    if (!leader_revive_sent_ && id_ != 0) {
+      if (last_heartbeat_map_.find(0) == last_heartbeat_map_.end() ||
+          (this->now() - last_heartbeat_map_[0]).nanoseconds() * 1e-6 > heartbeat_interval_ms_ * heartbeat_max_tick_) {
+            // We thought leader was dead, but someone is reviving it.
+            // Adopt the revival state to prevent us from sending redundant revives
+            leader_revive_sent_ = true;
+            watchdog_timer_->cancel();
+            watchdog_timer_->reset();
+      }
+    } else if (leader_revive_sent_) {
+      // Just extend/reset the watchdog if we see more revival attempts
+      watchdog_timer_->cancel();
+      watchdog_timer_->reset();
+    }
   }
 }
 
 void BenevolentDictatorAgent::on_watchdog_timeout()
 {
-  // Watchdog ended.
   // If the leader has been correctly revived, we just reset the flag.
-  // If not, on_heartbeat will catch it and try to revive again.
+  // If not, we reset the flag and on_heartbeat will catch it and try to revive again.
   leader_revive_sent_ = false;
   watchdog_timer_->cancel();
 }
@@ -90,14 +100,13 @@ void BenevolentDictatorAgent::on_heartbeat()
         revive_agent(agent.first);
         RCLCPP_INFO(get_logger(), "Leader Agent %d detected failure of Agent %d. Reviving...", id_, agent.first);
         
-        // Reset heartbeat timer to give the agent a grace period to wake up
-        // This prevents the leader from spamming revive requests in the next cycle
-        // while the agent is still booting.
+        // This prevents the leader from spamming revive requests in the next cycle while the agent is still booting.
+        // in ros we really need to reduce useless calls, especially revive calls that can be expensive.
         last_heartbeat_map_[agent.first] = now;
       }
     }
   } else {
-    // I am a subject. Check leader 0 status.
+    // I am a follower. Check leader 0 status.
     bool leader_alive = false;
     
     if (last_heartbeat_map_.find(0) != last_heartbeat_map_.end()) {
@@ -139,6 +148,12 @@ void BenevolentDictatorAgent::on_heartbeat_received(const std_msgs::msg::Int32Mu
 {
   if (msg->data.empty()) return;
   int sender_id = msg->data[0];
+
+  // OPTIMIZATION: If we receive a heartbeat from the leader (0), it means the revival was successful/leader is alive.
+  if (sender_id == 0 && leader_revive_sent_) {
+    leader_revive_sent_ = false;
+    watchdog_timer_->cancel();
+  }
 
   bool leader_just_revived = false;
 

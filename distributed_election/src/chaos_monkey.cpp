@@ -26,7 +26,7 @@ public:
     // wait for discovery time
     // it's safe to assume that for a short period after startup all nodes are up and running before facing ipotetical failures
     int discovery_time = this->get_parameter("discovery_time_s").as_int();
-    RCLCPP_INFO(this->get_logger(), "Chaos Monkey waiting %d seconds simulating a correct initialization", discovery_time);
+    RCLCPP_INFO(this->get_logger(), "| Chaos Monkey waiting %d seconds simulating a correct initialization", discovery_time);
 
     timer_ = this->create_wall_timer(
       std::chrono::seconds(this->get_parameter("kill_interval_s").as_int()),
@@ -39,7 +39,7 @@ public:
     disovery_timer_ = this->create_wall_timer(
       std::chrono::seconds(discovery_time),
       [this]() {
-        RCLCPP_INFO(this->get_logger(), "Chaos Monkey starting node failures");
+        RCLCPP_INFO(this->get_logger(), "| Chaos Monkey starting node failures");
         timer_->reset();
         disovery_timer_->cancel();
       });
@@ -63,7 +63,7 @@ private:
     }
 
     if (target_candidates.empty()) {
-      RCLCPP_WARN(get_logger(), "No nodes found matching prefix '%s'", prefix.c_str());
+      RCLCPP_WARN(get_logger(), "| No nodes found matching prefix '%s'", prefix.c_str());
       return;
     }
     
@@ -87,8 +87,8 @@ private:
 
     // not a good practice, but whould increase readability
     RCLCPP_INFO(get_logger(), " ");
-    RCLCPP_INFO(get_logger(), "----------------------------------------");
-    RCLCPP_INFO(get_logger(), "Chaos Monkey targeting: %s", node_name.c_str());
+    RCLCPP_INFO(get_logger(), " ________________________________ ");
+    RCLCPP_INFO(get_logger(), "| Chaos Monkey targeting: %s", node_name.c_str());
     
     std::string get_state_service_name = node_name + "/get_state";
     std::string change_state_service_name = node_name + "/change_state";
@@ -97,7 +97,7 @@ private:
     auto change_state_client = this->create_client<lifecycle_msgs::srv::ChangeState>(change_state_service_name);
     
     if (!get_state_client->wait_for_service(1s) || !change_state_client->wait_for_service(1s)) {
-      RCLCPP_WARN(get_logger(), "Services for %s not available. Node might be dead or not exist.", node_name.c_str());
+      RCLCPP_WARN(get_logger(), "| Services for %s not available. Node might be dead or not exist.", node_name.c_str());
       return;
     }
 
@@ -123,7 +123,7 @@ private:
               transition_id = lifecycle_msgs::msg::Transition::TRANSITION_UNCONFIGURED_SHUTDOWN;
               log_label = "UNCONFIGURED_SHUTDOWN";
           } else {
-              RCLCPP_INFO(this->get_logger(), "Node %s is in state %d, cannot shutdown or already shutdown", node_name.c_str(), current_state);
+              RCLCPP_INFO(this->get_logger(), "| Node %s is in state %d, cannot shutdown or already shutdown", node_name.c_str(), current_state);
               return;
           }
 
@@ -132,15 +132,15 @@ private:
           // Do not set label, let it use ID
           // change_req->transition.label = transition_label;
 
-          RCLCPP_INFO(this->get_logger(), "Sending %s (id %d) to %s", log_label.c_str(), transition_id, node_name.c_str());
+          RCLCPP_INFO(this->get_logger(), "| Sending %s (id %d) to %s", log_label.c_str(), transition_id, node_name.c_str());
 
           change_state_client->async_send_request(change_req, 
             [this, node_name, change_state_client](rclcpp::Client<lifecycle_msgs::srv::ChangeState>::SharedFuture future_change) {
               try {
                 if (future_change.get()->success) {
-                    RCLCPP_INFO(this->get_logger(), "Successfully shut down %s", node_name.c_str());
+                    RCLCPP_INFO(this->get_logger(), "| Successfully shut down %s", node_name.c_str());
                 } else {
-                    RCLCPP_WARN(this->get_logger(), "Failed to shut down %s", node_name.c_str());
+                    RCLCPP_WARN(this->get_logger(), "| Failed to shut down %s", node_name.c_str());
                 }
               } catch (...) {
                  RCLCPP_ERROR(this->get_logger(), "Change state service call failed for %s", node_name.c_str());

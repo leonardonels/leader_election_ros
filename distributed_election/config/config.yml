@@ -1,8 +1,8 @@
 simulation_orchestrator:
   ros__parameters:
     num_agents: 10
-    heartbeat_interval_ms: 1000
-    heartbeat_max_tick: 3              # Increased tolerance for network latency
+    heartbeat_interval_ms: 500
+    heartbeat_max_tick: 5              # Increased tolerance for network latency
     nodes_name_prefix: "agent_"
     agent_type: "benevolent_dictator"     # Options: "bully", "hybrid_ring", ring, raft, benevolent_dictator"
 
