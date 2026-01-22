@@ -9,6 +9,7 @@
 #include "distributed_election/hybrid_ring_agent.hpp"
 #include "distributed_election/raft_agent.hpp"
 #include "distributed_election/benevolent_dictator_agent.hpp"
+#include "distributed_election/traffic_logger.hpp"
 #include "lifecycle_msgs/msg/state.hpp"
 
 #include "std_msgs/msg/int32.hpp"
@@ -27,6 +28,11 @@ public:
     
     create_agents();
     
+    // Start Traffic Logger
+    std::string agent_type = this->get_parameter("agent_type").as_string();
+    traffic_logger_ = std::make_shared<distributed_election::TrafficLogger>(agent_type);
+    executor_->add_node(traffic_logger_);
+
     cleanup_timer_ = this->create_wall_timer(
       std::chrono::seconds(1),
       std::bind(&SimulationOrchestrator::cleanup_dead_agents, this));
@@ -124,6 +130,7 @@ public:
 private:
   rclcpp::Executor * executor_;
   std::vector<std::shared_ptr<distributed_election::SimpleAgent>> agents_;
+  std::shared_ptr<distributed_election::TrafficLogger> traffic_logger_;
   rclcpp::TimerBase::SharedPtr cleanup_timer_;
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr revival_sub_;
 };

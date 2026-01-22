@@ -14,6 +14,15 @@ find_package(lifecycle_msgs REQUIRED)
 
 include_directories(include)
 
+# Traffic logger is now part of simulation_orchestrator lib
+add_library(traffic_logger_lib
+  src/traffic_logger.cpp
+)
+ament_target_dependencies(traffic_logger_lib
+  rclcpp
+  std_msgs
+)
+
 add_executable(simulation_orchestrator
   src/simulation_orchestrator.cpp
   src/simple_agent.cpp
@@ -23,6 +32,7 @@ add_executable(simulation_orchestrator
   src/raft_agent.cpp
   src/benevolent_dictator_agent.cpp
 )
+target_link_libraries(simulation_orchestrator traffic_logger_lib)
 ament_target_dependencies(simulation_orchestrator
   rclcpp
   rclcpp_lifecycle
@@ -40,9 +50,18 @@ ament_target_dependencies(chaos_monkey
   lifecycle_msgs
 )
 
+# add_executable(traffic_logger
+#   src/traffic_logger.cpp
+# )
+# ament_target_dependencies(traffic_logger
+#   rclcpp
+#   std_msgs
+# )
+
 install(TARGETS
   simulation_orchestrator
   chaos_monkey
+#  traffic_logger
   DESTINATION lib/${PROJECT_NAME}
 )
 
