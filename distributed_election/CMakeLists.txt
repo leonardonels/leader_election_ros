@@ -21,6 +21,7 @@ add_executable(simulation_orchestrator
   src/ring_agent.cpp
   src/hybrid_ring_agent.cpp
   src/raft_agent.cpp
+  src/benevolent_dictator_agent.cpp
 )
 ament_target_dependencies(simulation_orchestrator
   rclcpp

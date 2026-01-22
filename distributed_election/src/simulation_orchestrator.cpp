@@ -8,6 +8,7 @@
 #include "distributed_election/ring_agent.hpp"
 #include "distributed_election/hybrid_ring_agent.hpp"
 #include "distributed_election/raft_agent.hpp"
+#include "distributed_election/benevolent_dictator_agent.hpp"
 #include "lifecycle_msgs/msg/state.hpp"
 
 #include "std_msgs/msg/int32.hpp"
@@ -66,6 +67,8 @@ public:
         agent = std::make_shared<distributed_election::HybridRingAgent>(node_name, id, heartbeat_interval, heartbeat_max_tick);
       } else if (agent_type == "raft") {
         agent = std::make_shared<distributed_election::RaftAgent>(node_name, id, heartbeat_interval, heartbeat_max_tick);
+      } else if (agent_type == "benevolent_dictator") {
+        agent = std::make_shared<distributed_election::BenevolentDictatorAgent>(node_name, id, heartbeat_interval, heartbeat_max_tick);
       } else {
         // Default to bully
         agent = std::make_shared<distributed_election::BullyAgent>(node_name, id, heartbeat_interval, heartbeat_max_tick);

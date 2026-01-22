@@ -4,17 +4,19 @@ simulation_orchestrator:
     heartbeat_interval_ms: 1000
     heartbeat_max_tick: 3              # Increased tolerance for network latency
     nodes_name_prefix: "agent_"
-    agent_type: "raft"                    # Options: "bully", "hybrid_ring", ring, raft"
+    agent_type: "benevolent_dictator"     # Options: "bully", "hybrid_ring", ring, raft, benevolent_dictator"
 
 chaos_monkey:
   ros__parameters:
     discovery_time_s: 5
     kill_interval_s: 10 
     target_nodes_prefix: "agent_"
-    reverse_order: false
+    reverse_order: true
 
 # ----------------------------------- Notes -----------------------------------
 
+# ----------------------------------- Bully -----------------------------------
+#
 # ----------------------------------- Ring ------------------------------------
 # the real issue with the ring implementation is the overall complexity of racing conditions and parallel processes
 #
@@ -57,4 +59,8 @@ chaos_monkey:
 #     kill_interval_s: 10 
 #     target_nodes_prefix: "agent_"
 #     reverse_order: false
+# ----------------------------------- Benevolent Dictator --------------------
+# once a follower node notices a leader failure it revives it, but only the first one that notices it
+#
+# tested conditions:
 # -----------------------------------------------------------------------------
