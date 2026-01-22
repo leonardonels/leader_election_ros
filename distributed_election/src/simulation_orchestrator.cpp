@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <mutex>
 
 #include "rclcpp/rclcpp.hpp"
 #include "distributed_election/bully_agent.hpp"
@@ -76,11 +77,11 @@ public:
     RCLCPP_INFO(this->get_logger(), "Creating %d agents...", num_agents);
 
     for (int i = 0; i < num_agents; ++i) {
-      spawn_agent(i, heartbeat_interval, nodes_name_prefix);
+      spawn_agent_internal(i, heartbeat_interval, nodes_name_prefix);
     }
   }
 
-  void spawn_agent(int id, int heartbeat_interval, const std::string & prefix)
+  void spawn_agent_internal(int id, int heartbeat_interval, const std::string & prefix)
   {
       std::string node_name = prefix + std::to_string(id);
       std::string agent_type = this->get_parameter("agent_type").as_string();
@@ -113,6 +114,7 @@ public:
   
   void revive_agent(const std_msgs::msg::Int32::SharedPtr msg)
   {
+    std::lock_guard<std::mutex> lock(agents_mutex_);
     int target_id = msg->data;
     std::string nodes_name_prefix = this->get_parameter("nodes_name_prefix").as_string();
     std::string target_name = nodes_name_prefix + std::to_string(target_id);
@@ -128,14 +130,20 @@ public:
     }
 
     // Cleanup dead agents before revival to prevent race conditions and duplicates
-    cleanup_dead_agents();
+    cleanup_dead_agents_internal();
 
     RCLCPP_INFO(this->get_logger(), "Reviving agent %d...", target_id);
     int heartbeat_interval = this->get_parameter("heartbeat_interval_ms").as_int();
-    spawn_agent(target_id, heartbeat_interval, nodes_name_prefix);
+    spawn_agent_internal(target_id, heartbeat_interval, nodes_name_prefix);
   }
   
   void cleanup_dead_agents()
+  {
+    std::lock_guard<std::mutex> lock(agents_mutex_);
+    cleanup_dead_agents_internal();
+  }
+
+  void cleanup_dead_agents_internal()
   {
     auto it = agents_.begin();
     while (it != agents_.end()) {
@@ -152,6 +160,7 @@ public:
 
 private:
   rclcpp::Executor * executor_;
+  std::mutex agents_mutex_;
   std::vector<std::shared_ptr<distributed_election::SimpleAgent>> agents_;
   std::shared_ptr<distributed_election::TrafficLogger> traffic_logger_;
   std::shared_ptr<distributed_election::ChaosMonkey> chaos_monkey_;

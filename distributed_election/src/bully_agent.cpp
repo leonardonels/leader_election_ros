@@ -30,18 +30,54 @@ BullyAgent::on_configure(const rclcpp_lifecycle::State & state)
     std::bind(&BullyAgent::on_map_received, this, std::placeholders::_1));
 
   gossip_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(heartbeat_interval_ms_ * 5),
+    std::chrono::milliseconds(heartbeat_interval_ms_ * heartbeat_max_tick_),
     std::bind(&BullyAgent::gossip_map, this));
 
   startup_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(heartbeat_interval_ms_ * 2),
+    std::chrono::milliseconds(heartbeat_interval_ms_ * heartbeat_max_tick_ / 3),
     std::bind(&BullyAgent::on_startup_timer, this));
+
+  heartbeat_timer_->cancel();
 
   return rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn::SUCCESS;
 }
 
+rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+BullyAgent::on_activate(const rclcpp_lifecycle::State & state)
+{
+  return SimpleAgent::on_activate(state);
+}
+
+rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+BullyAgent::on_deactivate(const rclcpp_lifecycle::State & state)
+{
+  return SimpleAgent::on_deactivate(state);
+}
+
+rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+BullyAgent::on_cleanup(const rclcpp_lifecycle::State & state)
+{
+  map_pub_.reset();
+  map_sub_.reset();
+  gossip_timer_.reset();
+  startup_timer_.reset();
+  return SimpleAgent::on_cleanup(state);
+}
+
+rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
+BullyAgent::on_shutdown(const rclcpp_lifecycle::State & state)
+{
+  map_pub_.reset();
+  map_sub_.reset();
+  gossip_timer_.reset();
+  startup_timer_.reset();
+  return SimpleAgent::on_shutdown(state);
+}
+
+
 void BullyAgent::gossip_map()
 {
+  if (!map_pub_) return;
   if (leader_id_ == id_) {
     return;
   }
@@ -72,15 +108,18 @@ void BullyAgent::on_map_received(const std_msgs::msg::Int32MultiArray::SharedPtr
 // But in this implementation, we simplify the logic: since we can use broadcast topics, we just check if the new leader ID is higher than ours, and if not we immediately take over.
 void BullyAgent::on_leader_received(const std_msgs::msg::Int32::SharedPtr msg)
 {
+  if (msg->data == leader_id_) return; // already know this leader
   leader_id_ = msg->data;
   if (leader_id_ >= id_){
     RCLCPP_INFO(get_logger(), "Agent %d acknowledges new leader: Agent %d", id_, leader_id_);
   }else{
     RCLCPP_WARN(get_logger(), "Agent %d received leader %d with lower ID! Taking over...", id_, leader_id_);
     leader_id_ = id_;
-    std_msgs::msg::Int32 msg;
-    msg.data = id_;
-    election_pub_->publish(msg);
+    if (election_pub_) {
+      std_msgs::msg::Int32 msg;
+      msg.data = id_;
+      election_pub_->publish(msg);
+    }
   }
 }
 
@@ -88,13 +127,17 @@ void BullyAgent::on_leader_received(const std_msgs::msg::Int32::SharedPtr msg)
 // But in this case we allow the node to first gather heartbeats to see if a higher node is alive and avoid unnecessary elections.
 void BullyAgent::on_startup_timer()
 {
-  startup_timer_->cancel();
-  election_ready_ = true;
+  if (!election_ready_) {
+    leader_id_ = id_;
+    election_ready_ = true;
+    if(heartbeat_pub_) announce_heartbeat();
+    return;
+  }
+  if(startup_timer_) startup_timer_->cancel();
   // RCLCPP_INFO(get_logger(), "Startup delay finished. Starting election logic.");
-  leader_id_ = id_;
   for (const auto & entry : last_heartbeat_map_) {
     int other_id = entry.first;
-    if (other_id > id_ && (this->now() - entry.second).nanoseconds() * 1e-6 <= heartbeat_interval_ms_ * 2) {
+    if (other_id > id_ && (this->now() - entry.second).nanoseconds() * 1e-6 <= heartbeat_interval_ms_ * heartbeat_max_tick_) {
       leader_id_ = other_id;
     }
   }
@@ -103,6 +146,7 @@ void BullyAgent::on_startup_timer()
   }else{
     RCLCPP_INFO(get_logger(), "Agent %d recognizes existing leader: Agent %d", id_, leader_id_);
   }
+  if (heartbeat_timer_) heartbeat_timer_->reset();
 }
 
 // When some process recognize that the current leader (on_heartbeat) is no longer active, it calls for an election.
@@ -119,7 +163,7 @@ void BullyAgent::run_election_logic()
 
     // Check if the node is alive before yielding
     // If it's dead, we ignore it (it can't be leader)
-    if ((now - last_seen).nanoseconds() * 1e-6 > heartbeat_interval_ms_ * 2) {
+    if ((now - last_seen).nanoseconds() * 1e-6 > heartbeat_interval_ms_ * heartbeat_max_tick_) {
       continue;
     }
 
@@ -128,9 +172,11 @@ void BullyAgent::run_election_logic()
       return;
     }
   }
-  std_msgs::msg::Int32 msg;
-  msg.data = id_;
-  election_pub_->publish(msg);
+  if (election_pub_) {
+    std_msgs::msg::Int32 msg;
+    msg.data = id_;
+    election_pub_->publish(msg);
+  }
   // RCLCPP_INFO(get_logger(), "Agent %d broadcasting leadership", id_);
 }
 

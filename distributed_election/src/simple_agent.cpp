@@ -110,6 +110,9 @@ void SimpleAgent::on_heartbeat()
       if ((now - agent.second).nanoseconds() * 1e-6 > heartbeat_interval_ms_ * heartbeat_max_tick_) {
         RCLCPP_WARN(get_logger(), "Leader %d detected failure of Agent %d", id_, agent.first);
         revive_agent(agent.first);
+        // This prevents the leader from spamming revive requests in the next cycle while the agent is still booting.
+        // in ros we really need to reduce useless calls, especially revive calls that can be expensive.
+        last_heartbeat_map_[agent.first] = now;
       }
     }
   }

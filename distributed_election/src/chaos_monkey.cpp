@@ -77,6 +77,7 @@ void ChaosMonkey::kill_random_node()
   int index = dist(rng_);
   std::string node_name = target_candidates[index];
 
+  RCLCPP_INFO(get_logger(), " ");
   RCLCPP_INFO(get_logger(), "Chaos Monkey now targeting: %s", node_name.c_str());
   
   std::string get_state_service_name = node_name + "/get_state";
