@@ -19,7 +19,7 @@ HybridRingAgent::on_configure(const rclcpp_lifecycle::State & state)
     return result;
   }
 
-  // ----------------------------------- Ring Agent Setup -----------------------------------
+  // ----------------------------------- Hybrid Ring Agent Setup -----------------------------------
   rclcpp::QoS qos_profile(1);
   qos_profile.best_effort();
   
@@ -90,8 +90,10 @@ void HybridRingAgent::on_startup_timer()
 
 void HybridRingAgent::on_leader_received(const std_msgs::msg::Int32::SharedPtr msg)
 {
-  leader_id_ = msg->data;
+  
   known_candidates_.clear();
+  if (leader_id_ == msg->data) return;
+  leader_id_ = msg->data;
   RCLCPP_INFO(get_logger(), "Agent %d acknowledges new leader: Agent %d", id_, leader_id_);
 }
 
@@ -176,8 +178,6 @@ void HybridRingAgent::on_token_received(const std_msgs::msg::Int32MultiArray::Sh
   std::vector<int> candidates(msg->data.begin() + 1, msg->data.end());
   
   // Aggregation Logic:
-  // 1. Check if received candidates are a subset of what we already know.
-  //    If so, we have already forwarded a superset token, so we can drop this one.
   bool is_subset = true;
   for (int c : candidates) {
     if (known_candidates_.find(c) == known_candidates_.end()) {
@@ -191,13 +191,13 @@ void HybridRingAgent::on_token_received(const std_msgs::msg::Int32MultiArray::Sh
     return;
   }
 
-  // 2. Merge candidates
+  // Merge candidates
   for (int c : candidates) {
     known_candidates_.insert(c);
   }
   known_candidates_.insert(id_);
 
-  // 3. Check if I was ALREADY in the incoming token (Circuit Complete)
+  // Check if I was ALREADY in the incoming token (Circuit Complete)
   bool circuit_complete = false;
   for (int candidate : candidates) {
     if (candidate == id_) {

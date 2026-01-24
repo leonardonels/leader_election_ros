@@ -160,7 +160,7 @@ void TrafficLogger::periodic_analysis()
   }
 
   // reduce log spam by printing every 30 seconds only
-  if ( ((int)elapsed) % 30 != 0 || ((int)elapsed) == 0) {
+  if ( ((int)elapsed) % 30 != 0 || ((int)elapsed) == 0 || elapsed - (int)elapsed > 0.1 ) {
       return;
   }
 
