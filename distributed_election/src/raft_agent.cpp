@@ -48,9 +48,9 @@ rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn
 RaftAgent::on_activate(const rclcpp_lifecycle::State & state)
 {
   leader_id_ = -1;
-  initiator_id_ = -1;
   is_election_in_progress_ = false;
   was_i_the_initiator_ = false;
+  election_ready_ = false;
 
   return SimpleAgent::on_activate(state);
 }
@@ -82,6 +82,12 @@ RaftAgent::on_shutdown(const rclcpp_lifecycle::State & state)
 
 void RaftAgent::on_startup_timer()
 {
+  if (!election_ready_) {
+    election_ready_ = true;
+    announce_heartbeat();
+    // RCLCPP_INFO(get_logger(), "Agent %d is ready for election.", id_);
+    return;
+  }
   if (leader_id_ != -1){
     startup_timer_->cancel();
     heartbeat_timer_->reset();
@@ -225,11 +231,13 @@ int RaftAgent::choose_leader()
 
 void RaftAgent::run_election_logic()
 {  
-  // whenever someone notice a leader missing start an election and candidate itself
-  initiator_id_ = id_;
   election_map_.clear();
-  // only one watchdog at a time
-  if (!is_election_in_progress_) election_watchdog_timer_->reset();
+  
+  if (!is_election_in_progress_) {
+    // I am starting the election/watchdog, so I am the initiator
+    election_watchdog_timer_->reset();
+    was_i_the_initiator_ = true;
+  }
   is_election_in_progress_ = true;
   RCLCPP_INFO(get_logger(), "Agent %d initiating Raft Election", id_);
 
@@ -247,8 +255,36 @@ void RaftAgent::run_election_logic()
 
 void RaftAgent::on_vote_received(const std_msgs::msg::Int32MultiArray::SharedPtr msg)
 {
-  if (leader_id_ == id_) publish_leader(); // if i'm the leader, re-announce
+  if (leader_id_ == id_) { // if i'm the leader, re-announce
+    publish_leader();
+    return;
+  }
 
+  // If I am NOT in an election state at all, this means I am hearing about an election for the first time.
+  // I should enter the "election in progress" state (to prevent voting multiple times) but NOT start a watchdog (timer).
+  if (!is_election_in_progress_) {
+    is_election_in_progress_ = true;
+    was_i_the_initiator_ = false; // I am a follower/voter in this election
+    election_watchdog_timer_->reset(); // Safety timeout for voters
+
+    int candidate_id = choose_leader();
+    if (candidate_id == -1) {
+      RCLCPP_WARN(get_logger(), "Agent %d found no suitable leader candidates", id_);
+      return;
+    }
+  
+    // Broadcast my vote response
+    std_msgs::msg::Int32MultiArray response_msg;
+    response_msg.data.push_back(candidate_id);
+    vote_pub_->publish(response_msg);
+    return;
+  }
+
+  // If I am already in an election state:
+  // 1. If I am a follower (was_i_the_initiator_ == false), I have already voted, so I ignore further vote messages.
+  if (!was_i_the_initiator_) return;
+
+  // 2. If I am the initiator (was_i_the_initiator_ == true), I need to COUNT the votes.
   // simply add votes to the elction map
   if (msg->data.size() != 1) return; // invalid vote message
   int candidate_id = msg->data[0];
@@ -257,9 +293,16 @@ void RaftAgent::on_vote_received(const std_msgs::msg::Int32MultiArray::SharedPtr
 
 void RaftAgent::on_watchdog_timeout()
 {
-  // the election period ended, count votes
+  // the election period ended
   election_watchdog_timer_->cancel();
   is_election_in_progress_ = false;
+
+  if (!was_i_the_initiator_) {
+    // If I was just a voter, this timeout means the election finished without me receiving a leader update.
+    // I reset my state so I can participate in or start new elections.
+    return;
+  }
+
   int max_votes = 0;
   int new_leader = -1;
   for (const auto & entry : election_map_) {
@@ -299,11 +342,18 @@ void RaftAgent::on_leader_received(const std_msgs::msg::Int32::SharedPtr msg)
       election_map_.clear();
     }
     leader_id_ = msg->data;
-    if (leader_id_ != id_) RCLCPP_INFO(get_logger(), "Agent %d acknowledges new leader: Agent %d", id_, leader_id_);
     if (leader_id_ == id_) {
       announce_heartbeat();
     }
+  }else{
+    // optimisation: i was the initiator, but someone else announced a leader
+    // this will prevent uselsess election untill the current leader fails
+    is_election_in_progress_ = false;
+    was_i_the_initiator_ = false;
+    election_map_.clear();
+    leader_id_ = msg->data;
   }
+  RCLCPP_INFO(get_logger(), "Agent %d acknowledges new leader: Agent %d", id_, leader_id_);
 }
 
 }  // namespace distributed_election

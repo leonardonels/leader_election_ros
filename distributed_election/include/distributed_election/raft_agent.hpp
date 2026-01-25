@@ -32,7 +32,6 @@ protected:
   rclcpp::Subscription<std_msgs::msg::Int32MultiArray>::SharedPtr vote_sub_;
   rclcpp::TimerBase::SharedPtr election_watchdog_timer_;
   std::map<int, int> election_map_;
-  int initiator_id_;
   bool is_election_in_progress_;
   bool was_i_the_initiator_;
 
@@ -44,6 +43,7 @@ protected:
 
   // Startup timer
   rclcpp::TimerBase::SharedPtr startup_timer_;
+  bool election_ready_;
 
 };
 }

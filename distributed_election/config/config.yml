@@ -4,7 +4,7 @@ simulation_orchestrator:
     heartbeat_interval_ms: 500
     heartbeat_max_tick: 5              # Increased tolerance to gain network latency
     nodes_name_prefix: "agent_"
-    agent_type: "hybrid_ring"     # Options: "bully", "hybrid_ring", ring, raft, benevolent_dictator"
+    agent_type: "raft"     # Options: "bully", "hybrid_ring", ring, raft, benevolent_dictator"
     enable_traffic_logger: true        # Enable/Disable the traffic analysis logger
     
     # Chaos Monkey Settings
