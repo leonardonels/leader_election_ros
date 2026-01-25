@@ -1,4 +1,4 @@
-#include "distributed_election/bully_agent.hpp"
+#include "distributed_election_simulation/bully_agent.hpp"
 
 namespace distributed_election
 {

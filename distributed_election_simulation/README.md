@@ -97,7 +97,7 @@ The following agents are available for simulation. All agents inherit from a com
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select distributed_election
+colcon build --packages-select distributed_election_simulation
 source install/setup.bash
 ```
 
@@ -106,7 +106,7 @@ source install/setup.bash
 Run the simulation using the provided launch file:
 
 ```bash
-ros2 launch distributed_election simulation.launch.py
+ros2 launch distributed_election_simulation simulation.launch.py
 ```
 
 ### Configuration

@@ -1,4 +1,4 @@
-#include "distributed_election/traffic_logger.hpp"
+#include "distributed_election_simulation/traffic_logger.hpp"
 
 #include <sstream>
 #include <iomanip>

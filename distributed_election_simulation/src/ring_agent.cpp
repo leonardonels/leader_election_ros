@@ -1,4 +1,4 @@
-#include "distributed_election/ring_agent.hpp"
+#include "distributed_election_simulation/ring_agent.hpp"
 #include <algorithm>
 
 namespace distributed_election

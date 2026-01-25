@@ -1,4 +1,4 @@
-#include "distributed_election/simple_agent.hpp"
+#include "distributed_election_simulation/simple_agent.hpp"
 #include "std_msgs/msg/int32_multi_array.hpp"
 
 namespace distributed_election

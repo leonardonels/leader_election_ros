@@ -5,13 +5,13 @@
 #include <mutex>
 
 #include "rclcpp/rclcpp.hpp"
-#include "distributed_election/bully_agent.hpp"
-#include "distributed_election/ring_agent.hpp"
-#include "distributed_election/hybrid_ring_agent.hpp"
-#include "distributed_election/raft_agent.hpp"
-#include "distributed_election/benevolent_dictator_agent.hpp"
-#include "distributed_election/traffic_logger.hpp"
-#include "distributed_election/chaos_monkey.hpp"
+#include "distributed_election_simulation/bully_agent.hpp"
+#include "distributed_election_simulation/ring_agent.hpp"
+#include "distributed_election_simulation/hybrid_ring_agent.hpp"
+#include "distributed_election_simulation/raft_agent.hpp"
+#include "distributed_election_simulation/benevolent_dictator_agent.hpp"
+#include "distributed_election_simulation/traffic_logger.hpp"
+#include "distributed_election_simulation/chaos_monkey.hpp"
 #include "lifecycle_msgs/msg/state.hpp"
 
 #include "std_msgs/msg/int32.hpp"

@@ -1,7 +1,7 @@
 #ifndef DISTRIBUTED_ELECTION__BENEVOLENT_DICTATOR_AGENT_HPP_
 #define DISTRIBUTED_ELECTION__BENEVOLENT_DICTATOR_AGENT_HPP_
 
-#include "distributed_election/simple_agent.hpp"
+#include "distributed_election_simulation/simple_agent.hpp"
 
 namespace distributed_election
 {

@@ -1,4 +1,4 @@
-#include "distributed_election/benevolent_dictator_agent.hpp"
+#include "distributed_election_simulation/benevolent_dictator_agent.hpp"
 #include <random>
 
 namespace distributed_election
