@@ -156,7 +156,6 @@ void BullyAgent::run_election_logic()
     return;
   }
   rclcpp::Time now = this->now();
-  // test logic: broadcast bully
   for (const auto & entry : last_heartbeat_map_) {
     int other_id = entry.first;
     rclcpp::Time last_seen = entry.second;
@@ -167,6 +166,7 @@ void BullyAgent::run_election_logic()
       continue;
     }
 
+    // we are in a broadcast environment, this optimisiation is ment to reduce unnecessary elections and talkings between nodes
     if (other_id > id_) {
       // Found a higher ID that is ALIVE, do not become leader
       return;

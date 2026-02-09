@@ -10,7 +10,7 @@ simulation_orchestrator:
     # Chaos Monkey Settings
     enable_chaos_monkey: true
     chaos_monkey.kill_interval_s: 6   # increase the kill interval allows more time for recovery and reduce race condition issues
-    chaos_monkey.discovery_time_s: 6
+    chaos_monkey.discovery_time_s: 6  # 3 to have fun with Raft
     chaos_monkey.reverse_order: false
     chaos_monkey.reduce_race_conditions: false
 

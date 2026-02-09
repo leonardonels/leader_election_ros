@@ -17,7 +17,7 @@ The system simulates a cluster of distributed agents that must agree on a leader
 
 The following agents are available for simulation. All agents inherit from a common **`SimpleAgent`** base class, which provides the fundamental infrastructure for lifecycle management, heartbeat broadcasting, and peer discovery (`/election/heartbeats`), but is not itself a deployable agent strategy.
 
-### 1. BullyAgent
+### 1. BullyAgent - O(N)
 **Core Mechanism**: The "Bully" algorithm where the node with the highest ID always wins.
 
 *   **Assumptions**: All nodes have unique, comparable IDs.
@@ -30,7 +30,7 @@ The following agents are available for simulation. All agents inherit from a com
     *   **Startup Check Optimisation**: On boot, it waits briefly to see if a higher-ID node is already active. If not, it self-proclaims leadership.
 *   **Gossip**: To ensure network consistency, the leader periodically broadcasts its view of the network map on `/election/map` so new nodes can quickly sync up.
 
-### 2. RingAgent
+### 2. RingAgent - O(N)
 **Core Mechanism**: Logical ring topology with token passing.
 
 *   **Topology**: Nodes auto-organize into a ring based on their IDs (e.g., 0 -> 1 -> 2 -> 0). Each node calculates its "successor" dynamically based on the list of active peers.
@@ -39,7 +39,7 @@ The following agents are available for simulation. All agents inherit from a com
     *   **Leader Selection**: The token collects information about the highest ID seen so far as it traverses the ring. When it returns to the initiator, the winner is announced.
 *   **Failure Handling**: If a successor dies (heartbeat timeout), the ring is repaired by skipping the dead node and connecting to the next available successor.
 
-### 3. HybridRingAgent
+### 3. HybridRingAgent - O(N)
 **Core Mechanism**: A combination of Ring coordination and Gossip discovery.
 
 *   **Hybrid Approach**:
@@ -47,7 +47,7 @@ The following agents are available for simulation. All agents inherit from a com
     *   **Discovery**: Uses the Gossip protocol (broadcasting maps) from the Bully algorithm to propagate state changes faster than a pure ring could.
 *   **Benefit**: This attempts to balance the low message overhead of rings with the high resilience and fast convergence of gossip data.
 
-### 5. RaftAgent or to be more precise Raft-Inspired Agent (Reliability-Based Voting)
+### 5. RaftAgent or to be more precise Raft-Inspired Agent (Reliability-Based Voting) - O(N)
 **Core Mechanism**: A consensus-based approach where agents vote for the most reliable peer.
 
 *   **Logic**:
@@ -56,7 +56,7 @@ The following agents are available for simulation. All agents inherit from a com
     *   **Plurality Win**: When the election timer expires, the candidate with the most votes is declared the new leader.
 *   **Difference from Standard Raft**: This implementation simplifies Raft by removing election terms and log replication, replacing the "RequestVote" RPC with a broadcast nomination based on uptime/stability metrics.
 
-### 5. BenevolentDictatorAgent
+### 5. BenevolentDictatorAgent O(1)
 **Core Mechanism**: Static, priority-based leadership (Node 0 is always King).
 
 *   **Goal**: Ensure Node 0 is the leader whenever it is alive.
